@@ -51,6 +51,9 @@ def test_fault_conforms(fault, placement):
     assert any(env.read(bind_query(q, placement, world)).rendered for q in path)
 
     # 3. Every canonical resolution clears it, invariants intact.
+    if fault.escalation_is_correct and not fault.canonical_resolutions():
+        return  # escalate-only faults have no technician fix by design
+    assert fault.canonical_resolutions(), f"{fault.id} declares no resolution"
     for resolution in fault.canonical_resolutions():
         broken = load_world()
         fault.apply(broken, placement, Random(0))
@@ -109,3 +112,18 @@ def test_every_fault_declares_a_backend_and_a_difficulty():
     for fault in all_faults():
         assert fault.supported_backends, f"{fault.id} supports no backend"
         assert 1 <= fault.difficulty <= 5, f"{fault.id} has an out-of-range difficulty"
+
+
+def test_v1_catalog_is_complete():
+    ids = {f.id for f in all_faults()}
+    assert ids == {
+        "ad.account_locked", "ad.password_expired", "ad.offboarded_reactivation",
+        "share.group_membership_removed", "print.spooler_stopped", "print.wrong_driver",
+        "net.static_dns_misconfig", "net.no_dhcp_lease",
+        "endpoint.disk_full", "endpoint.failing_disk",
+    }
+
+
+def test_exactly_two_faults_are_escalate_correct():
+    escalate = {f.id for f in all_faults() if f.escalation_is_correct}
+    assert escalate == {"ad.offboarded_reactivation", "endpoint.failing_disk"}

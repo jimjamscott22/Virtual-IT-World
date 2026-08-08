@@ -1,3 +1,3 @@
-from vitsc.faults.catalog import identity, network  # noqa: F401
+from vitsc.faults.catalog import endpoint, identity, network, printing  # noqa: F401
 
-__all__ = ["identity", "network"]
+__all__ = ["endpoint", "identity", "network", "printing"]

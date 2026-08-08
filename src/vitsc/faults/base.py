@@ -20,6 +20,7 @@ Backend = Literal["simulated", "winrm"]
 PLACEHOLDER = "{placement}"
 PLACEHOLDER_MACHINE = "{machine}"
 PLACEHOLDER_GROUP = "{group}"
+PLACEHOLDER_PRINTER = "{printer}"
 
 
 class Placement(BaseModel):
@@ -62,12 +63,27 @@ class Fault(Protocol):
 
 
 def _sentinels(at: Placement, world: World) -> dict[str, str]:
-    machine = world.machine_for(at.key) if at.kind == "user" else None
     return {
         PLACEHOLDER: at.key,
-        PLACEHOLDER_MACHINE: machine.hostname if machine else "",
+        PLACEHOLDER_MACHINE: _machine_key(world, at),
         PLACEHOLDER_GROUP: _share_group(world, at) or "",
+        PLACEHOLDER_PRINTER: _printer_key(at),
     }
+
+
+def _machine_key(world: World, at: Placement) -> str:
+    if at.kind == "machine":
+        return at.key
+    if at.kind == "printer":
+        return at.key.split("/", 1)[0]
+    machine = world.machine_for(at.key) if at.kind == "user" else None
+    return machine.hostname if machine else ""
+
+
+def _printer_key(at: Placement) -> str:
+    if at.kind != "printer":
+        return ""
+    return at.key.split("/", 1)[1]
 
 
 def _share_group(world: World, at: Placement) -> str | None:
@@ -78,8 +94,8 @@ def _share_group(world: World, at: Placement) -> str | None:
 
 
 def bind(resolution: ResolutionPath, at: Placement, world: World) -> ResolutionPath:
-    """Replace placement sentinels (`{placement}`, `{machine}`, `{group}`) with
-    concrete world keys.
+    """Replace placement sentinels (`{placement}`, `{machine}`, `{group}`,
+    `{printer}`) with concrete world keys.
 
     `canonical_resolutions()` cannot know its placement, so callers bind it.
     """
