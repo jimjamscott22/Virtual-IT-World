@@ -59,6 +59,9 @@ class Machine(BaseModel):
     hostname: str
     assigned_to: str | None = None
     ip: str | None = None
+    # The server-side lease record. Unlike `ip`, a fault never clears this —
+    # it's what a DHCP renewal restores.
+    dhcp_reserved_ip: str | None = None
     subnet_mask: str = "255.255.255.0"
     gateway: str | None = None
     dns_servers: list[str] = Field(default_factory=list)

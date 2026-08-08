@@ -19,11 +19,6 @@ class SimulatedEnvironment:
     def __init__(self, world: World) -> None:
         self.world = world
         self._snapshots: dict[str, World] = {}
-        # The DHCP server's lease records live on the server, not the client,
-        # so they survive a workstation losing its address.
-        self._dhcp_reservations: dict[str, str] = {
-            m.hostname: m.ip for m in world.machines.values() if m.ip is not None
-        }
 
     # --- Environment protocol -------------------------------------------
     def read(self, query: Query) -> Observation:
@@ -372,7 +367,7 @@ class SimulatedEnvironment:
                 rendered=f"The operation failed as no adapter is in the state "
                 f"permissible for this operation on {machine.hostname}.",
             )
-        lease = self._dhcp_reservations.get(machine.hostname)
+        lease = machine.dhcp_reserved_ip
         if lease is None:
             return ActionResult(
                 ok=False,
