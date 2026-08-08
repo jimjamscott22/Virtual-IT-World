@@ -1,0 +1,59 @@
+# Meridian Freight Co. — the fictional employer.
+#
+# This file is the only hand-authored content in the project. The org is
+# deliberately stable across sessions: learning its OUs, subnets, print
+# servers and naming conventions is part of the drill.
+
+domain: meridian.local
+clock: 2026-08-07T09:00:00
+
+network:
+  subnet: 10.20.10.0/24
+  gateway: 10.20.10.1
+  dns_servers: ["10.20.10.5"]
+  dhcp_server: 10.20.10.5
+
+users:
+  - {sam: m.alvarez,   display_name: Maria Alvarez,    department: Accounting, title: Accounting Clerk,     ou: "OU=Accounting,DC=meridian,DC=local"}
+  - {sam: d.okafor,    display_name: Daniel Okafor,    department: Accounting, title: Accounts Payable,     ou: "OU=Accounting,DC=meridian,DC=local"}
+  - {sam: e.novak,     display_name: Emil Novak,       department: Accounting, title: Controller,           ou: "OU=Accounting,DC=meridian,DC=local"}
+  - {sam: s.whitfield, display_name: Sandra Whitfield, department: Operations, title: Operations Manager,   ou: "OU=Operations,DC=meridian,DC=local"}
+  - {sam: t.nakamura,  display_name: Tomo Nakamura,    department: Operations, title: Dispatcher,           ou: "OU=Operations,DC=meridian,DC=local"}
+  - {sam: r.gallagher, display_name: Ryan Gallagher,   department: Operations, title: Dispatcher,           ou: "OU=Operations,DC=meridian,DC=local"}
+  - {sam: p.mensah,    display_name: Priya Mensah,     department: Sales,      title: Sales Representative, ou: "OU=Sales,DC=meridian,DC=local"}
+  - {sam: c.donnelly,  display_name: Colin Donnelly,   department: Sales,      title: Sales Representative, ou: "OU=Sales,DC=meridian,DC=local"}
+  - {sam: b.ferreira,  display_name: Bruno Ferreira,   department: Warehouse,  title: Warehouse Lead,       ou: "OU=Warehouse,DC=meridian,DC=local"}
+  - {sam: k.lindqvist, display_name: Kari Lindqvist,   department: Warehouse,  title: Warehouse Associate,  ou: "OU=Warehouse,DC=meridian,DC=local"}
+  - {sam: j.abiodun,   display_name: Joy Abiodun,      department: HR,         title: HR Coordinator,       ou: "OU=HR,DC=meridian,DC=local"}
+  - {sam: h.reyes,     display_name: Hector Reyes,     department: Operations, title: Night Dispatcher,     ou: "OU=Operations,DC=meridian,DC=local"}
+
+groups:
+  ACC-Share-RW:   [m.alvarez, d.okafor, e.novak]
+  OPS-Share-RW:   [s.whitfield, t.nakamura, r.gallagher, h.reyes]
+  SALES-Share-RW: [p.mensah, c.donnelly]
+  WH-Share-RW:    [b.ferreira, k.lindqvist]
+  HR-Share-RW:    [j.abiodun]
+
+servers:
+  - {hostname: MER-DC-01,  ip: 10.20.10.5, role: dc}
+  - {hostname: MER-FS-01,  ip: 10.20.10.6, role: fileserver}
+  - {hostname: MER-PRT-01, ip: 10.20.10.7, role: printserver}
+
+workstations:
+  - {hostname: MER-WS-001, assigned_to: m.alvarez,   ip: 10.20.10.41, printers: [PRT-ACC-01]}
+  - {hostname: MER-WS-002, assigned_to: d.okafor,    ip: 10.20.10.42, printers: [PRT-ACC-01]}
+  - {hostname: MER-WS-003, assigned_to: s.whitfield, ip: 10.20.10.43, printers: [PRT-OPS-01]}
+  - {hostname: MER-WS-004, assigned_to: t.nakamura,  ip: 10.20.10.44, printers: [PRT-OPS-01]}
+  - {hostname: MER-WS-005, assigned_to: p.mensah,    ip: 10.20.10.45, printers: [PRT-OPS-01]}
+  - {hostname: MER-WS-006, assigned_to: b.ferreira,  ip: 10.20.10.46, printers: [PRT-WH-01]}
+
+printers:
+  - {name: PRT-ACC-01, host: MER-PRT-01, model: "HP LaserJet M507", correct_driver: "HP LaserJet M507 PCL-6"}
+  - {name: PRT-OPS-01, host: MER-PRT-01, model: "HP LaserJet M507", correct_driver: "HP LaserJet M507 PCL-6"}
+  - {name: PRT-WH-01,  host: MER-PRT-01, model: "Zebra ZT411",      correct_driver: "Zebra ZT411 ZPL"}
+
+shares:
+  - {unc: "\\\\MER-FS-01\\Accounting", host: MER-FS-01, required_group: ACC-Share-RW,   drive_letter: "S:"}
+  - {unc: "\\\\MER-FS-01\\Operations", host: MER-FS-01, required_group: OPS-Share-RW,   drive_letter: "S:"}
+  - {unc: "\\\\MER-FS-01\\Sales",      host: MER-FS-01, required_group: SALES-Share-RW, drive_letter: "S:"}
+  - {unc: "\\\\MER-FS-01\\Warehouse",  host: MER-FS-01, required_group: WH-Share-RW,    drive_letter: "S:"}
