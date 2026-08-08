@@ -18,6 +18,8 @@ Domain = Literal["identity", "network", "printing", "mail", "endpoint"]
 Backend = Literal["simulated", "winrm"]
 
 PLACEHOLDER = "{placement}"
+PLACEHOLDER_MACHINE = "{machine}"
+PLACEHOLDER_GROUP = "{group}"
 
 
 class Placement(BaseModel):
@@ -59,22 +61,49 @@ class Fault(Protocol):
     def canonical_resolutions(self) -> list[ResolutionPath]: ...
 
 
-def bind(resolution: ResolutionPath, at: Placement) -> ResolutionPath:
-    """Replace the `{placement}` sentinel with the concrete target key.
+def _sentinels(at: Placement, world: World) -> dict[str, str]:
+    machine = world.machine_for(at.key) if at.kind == "user" else None
+    return {
+        PLACEHOLDER: at.key,
+        PLACEHOLDER_MACHINE: machine.hostname if machine else "",
+        PLACEHOLDER_GROUP: _share_group(world, at) or "",
+    }
+
+
+def _share_group(world: World, at: Placement) -> str | None:
+    machine = world.machine_for(at.key) if at.kind == "user" else None
+    if machine is None or "S:" not in machine.mapped_drives:
+        return None
+    return world.shares[machine.mapped_drives["S:"]].required_group
+
+
+def bind(resolution: ResolutionPath, at: Placement, world: World) -> ResolutionPath:
+    """Replace placement sentinels (`{placement}`, `{machine}`, `{group}`) with
+    concrete world keys.
 
     `canonical_resolutions()` cannot know its placement, so callers bind it.
     """
+    subs = _sentinels(at, world)
     return ResolutionPath(
         label=resolution.label,
         actions=[
             a.model_copy(
                 update={
-                    "target": at.key if a.target == PLACEHOLDER else a.target,
-                    "args": {
-                        k: (at.key if v == PLACEHOLDER else v) for k, v in a.args.items()
-                    },
+                    "target": subs.get(a.target, a.target),
+                    "args": {k: subs.get(v, v) for k, v in a.args.items()},
                 }
             )
             for a in resolution.actions
         ],
+    )
+
+
+def bind_query(query: Query, at: Placement, world: World) -> Query:
+    """Replace placement sentinels in a diagnostic query the same way `bind` does."""
+    subs = _sentinels(at, world)
+    return query.model_copy(
+        update={
+            "target": subs.get(query.target, query.target),
+            "args": {k: subs.get(v, v) for k, v in query.args.items()},
+        }
     )

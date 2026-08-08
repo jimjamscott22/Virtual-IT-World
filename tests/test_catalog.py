@@ -11,7 +11,7 @@ from random import Random
 import pytest
 
 from vitsc.env.simulated import SimulatedEnvironment
-from vitsc.faults.base import bind
+from vitsc.faults.base import bind, bind_query
 from vitsc.faults.registry import all_faults
 from vitsc.world.invariants import capture_baseline, check_invariants
 from vitsc.world.seed import load_world
@@ -48,7 +48,7 @@ def test_fault_conforms(fault, placement):
     env = SimulatedEnvironment(world)
     path = fault.diagnostic_path(placement)
     assert path, f"{fault.id} declares no diagnostic path"
-    assert any(env.read(q).rendered for q in path)
+    assert any(env.read(bind_query(q, placement, world)).rendered for q in path)
 
     # 3. Every canonical resolution clears it, invariants intact.
     for resolution in fault.canonical_resolutions():
@@ -56,7 +56,7 @@ def test_fault_conforms(fault, placement):
         fault.apply(broken, placement, Random(0))
         scoped = SimulatedEnvironment(broken)
         baseline = capture_baseline(broken)
-        for action in bind(resolution, placement).actions:
+        for action in bind(resolution, placement, broken).actions:
             result = scoped.execute(action)
             assert result.ok, (
                 f"{fault.id}: resolution '{resolution.label}' action "
@@ -93,7 +93,9 @@ def test_discoverability_actually_differs(fault, placement):
     broken = SimulatedEnvironment(broken_world)
     path = fault.diagnostic_path(placement)
     assert any(
-        clean.read(q).rendered != broken.read(q).rendered for q in path
+        clean.read(bind_query(q, placement, clean.world)).rendered
+        != broken.read(bind_query(q, placement, broken.world)).rendered
+        for q in path
     ), f"{fault.id}@{placement.key} is not observable via its diagnostic path"
 
 
