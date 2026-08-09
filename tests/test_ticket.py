@@ -93,12 +93,18 @@ def test_a_manager_outranks_a_clerk_for_the_same_fault():
     )
 
 
-def test_cannot_sign_in_is_always_p1():
+@pytest.mark.parametrize(
+    "fault_id",
+    ["ad.account_locked", "ad.password_expired", "ad.offboarded_reactivation"],
+)
+def test_cannot_sign_in_is_always_p1(fault_id):
+    """Every sign-in blocker is P1 for the most junior user in the org.
+
+    `ad.offboarded_reactivation` counts even though it is escalate-only: the
+    priority reflects impact on the person, not who ends up fixing it.
+    """
     world = load_world()
-    assert (
-        priority_for(get_fault("ad.account_locked"), world.org.users["k.lindqvist"])
-        is Priority.P1
-    )
+    assert priority_for(get_fault(fault_id), world.org.users["k.lindqvist"]) is Priority.P1
 
 
 def test_a_harder_fault_outranks_an_easier_one_for_the_same_person():

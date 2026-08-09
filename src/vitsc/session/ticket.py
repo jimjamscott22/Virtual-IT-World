@@ -21,8 +21,15 @@ class Priority(IntEnum):
 
 SLA_MINUTES = {Priority.P1: 60, Priority.P2: 240, Priority.P3: 480, Priority.P4: 1440}
 
-# Faults that stop a person working entirely are always top priority.
-WORK_STOPPING = {"ad.account_locked", "ad.password_expired", "net.no_dhcp_lease"}
+# Faults that stop a person working entirely are always top priority. Impact
+# on the person decides this, not how the ticket ends up being routed — an
+# offboarded account is escalate-only, but the employee still cannot log in.
+WORK_STOPPING = {
+    "ad.account_locked",
+    "ad.password_expired",
+    "ad.offboarded_reactivation",
+    "net.no_dhcp_lease",
+}
 SENIOR_TITLES = {"Operations Manager", "Controller"}
 
 
