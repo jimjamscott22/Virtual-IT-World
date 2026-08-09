@@ -1,6 +1,7 @@
+from datetime import UTC, datetime
 from typing import Literal, Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from vitsc.faults.base import UserSymptoms
 
@@ -19,6 +20,10 @@ class PersonaCard(BaseModel):
 class ChatTurn(BaseModel):
     speaker: Literal["tech", "user"]
     text: str
+    # Wall clock, matching `ToolCall.at`, because this exists to order chat
+    # against tool calls ("did you ask before you touched"). SLA timing is the
+    # separate, simulated `world.clock` — do not mix the two here.
+    at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class Persona(Protocol):
