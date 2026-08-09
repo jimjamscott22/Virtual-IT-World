@@ -30,7 +30,13 @@ def capture_baseline(world: World) -> Baseline:
             if state is ServiceState.RUNNING
         },
         group_members={g.name: set(g.members) for g in world.org.groups.values()},
-        allowed_dns=set(world.network.dns_servers),
+        # Every other field snapshots current world state; this one must too.
+        # Reading only `network.dns_servers` would break the capture-after-apply
+        # guarantee for `net.static_dns_misconfig`, whose whole effect is a
+        # machine pointing somewhere the network config does not list — the
+        # fault would report itself as collateral damage the moment it landed.
+        allowed_dns=set(world.network.dns_servers)
+        | {server for m in world.machines.values() for server in m.dns_servers},
     )
 
 

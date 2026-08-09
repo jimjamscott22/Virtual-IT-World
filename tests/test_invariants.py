@@ -42,6 +42,20 @@ def test_foreign_dns_is_a_violation(world):
     assert any("1.1.1.1" in v for v in violations)
 
 
+def test_dns_the_fault_already_set_is_not_a_violation(world):
+    """The capture-after-apply guarantee has to hold for DNS like everything else.
+
+    `net.static_dns_misconfig` points a machine at a server the network config
+    does not list. If the baseline only trusted `network.dns_servers`, the
+    fault would show up as the technician's own collateral damage.
+    """
+    world.machines["MER-WS-001"].dns_servers = ["10.20.10.99"]
+    baseline = capture_baseline(world)
+    assert check_invariants(world, baseline) == []
+    world.machines["MER-WS-002"].dns_servers = ["1.1.1.1"]
+    assert any("1.1.1.1" in v for v in check_invariants(world, baseline))
+
+
 def test_restarting_a_service_the_fault_stopped_is_not_a_violation(world):
     world.machines["MER-WS-001"].services["Spooler"] = ServiceState.STOPPED
     baseline = capture_baseline(world)
