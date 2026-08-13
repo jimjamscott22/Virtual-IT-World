@@ -1,0 +1,4 @@
+{% for call in calls %}
+<pre class="tool-call">{{ call.tool }} {{ call.command }} {{ call.args.values() | join(' ') }}
+{{ call.rendered }}</pre>
+{% endfor %}

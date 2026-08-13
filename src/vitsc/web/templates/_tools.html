@@ -1,0 +1,21 @@
+<div id="tools">
+  <form hx-post="/ticket/{{ ticket.id }}/tool" hx-target="#toolout" hx-swap="innerHTML">
+    <select name="tool">
+      {% for t in tools %}
+      <option value="{{ t.name }}">{{ t.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="command">
+      {% for t in tools %}
+      {% for cmd in t.commands() %}
+      <option value="{{ cmd }}">{{ t.name }} {{ cmd }}</option>
+      {% endfor %}
+      {% endfor %}
+    </select>
+    <input type="text" name="args" placeholder="key=value key=value">
+    <button type="submit">Run</button>
+  </form>
+  <div id="toolout">
+    {% include "_toolout.html" %}
+  </div>
+</div>

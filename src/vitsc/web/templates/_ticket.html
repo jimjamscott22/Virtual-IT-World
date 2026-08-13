@@ -24,7 +24,7 @@
     <button type="submit">Set priority</button>
   </form>
 
-  <div id="tools"></div>
-  <div id="chat"></div>
+  <div id="tools" hx-get="/ticket/{{ ticket.id }}/tools" hx-trigger="load"></div>
+  {% include "_chat.html" %}
   <div id="close"></div>
 </article>
