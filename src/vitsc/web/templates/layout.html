@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block body %}
+<header class="topbar">
+  <h1>Virtual IT Support Center</h1>
+  <p class="org-name">Meridian Freight Co.</p>
+</header>
+<main class="layout">
+  <section id="queue" class="queue-pane" hx-get="/queue" hx-trigger="every 10s" hx-swap="innerHTML">
+    {% include "_queue.html" %}
+  </section>
+  <section id="detail" class="detail-pane">
+    {% block detail %}
+    <p class="empty-state">Select a ticket from the queue.</p>
+    {% endblock %}
+  </section>
+</main>
+{% endblock %}

@@ -1,0 +1,30 @@
+{# Never render ticket.fault_id, a fault's canonical_title, or ticket.symptoms
+   directly here — only report_text and chat turns, which are persona-mediated.
+   Rendering the fault itself would hand the technician the answer. #}
+<article class="ticket-detail">
+  <header>
+    <h2>Ticket #{{ ticket.id }}</h2>
+    <p class="persona-name">{{ ticket.persona.name }}</p>
+    <p class="persona-meta">{{ ticket.persona.role }} · {{ ticket.persona.department }}</p>
+  </header>
+
+  {# report_text is system-authored (persona/fault generated), never technician
+     input, so it's safe to render without HTML-escaping its quotes/apostrophes. #}
+  <p class="report-text">{{ ticket.report_text | safe }}</p>
+
+  <form hx-post="/ticket/{{ ticket.id }}/priority" hx-target="#detail" hx-swap="innerHTML">
+    <label for="priority">Your triage priority</label>
+    <select name="priority" id="priority">
+      {% for p in priorities %}
+      <option value="{{ p.value }}" {% if ticket.user_priority == p %}selected{% endif %}>
+        P{{ p.value }}
+      </option>
+      {% endfor %}
+    </select>
+    <button type="submit">Set priority</button>
+  </form>
+
+  <div id="tools"></div>
+  <div id="chat"></div>
+  <div id="close"></div>
+</article>

@@ -1,0 +1,65 @@
+:root {
+  color-scheme: light dark;
+  --bg: #12151a;
+  --panel: #1b1f27;
+  --border: #2a2f3a;
+  --text: #e6e8eb;
+  --muted: #9aa2af;
+  --accent: #4f8cff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.topbar {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar h1 { margin: 0; font-size: 1.1rem; }
+.org-name { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  min-height: calc(100vh - 70px);
+}
+
+.queue-pane {
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.ticket-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 0.25rem 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.ticket-row:hover { background: var(--panel); }
+
+.ticket-id, .ticket-priority { color: var(--muted); font-size: 0.85rem; }
+.ticket-persona { font-weight: 600; }
+.ticket-opening, .ticket-sla { grid-column: 1 / -1; color: var(--muted); font-size: 0.85rem; }
+
+.detail-pane { padding: 1.5rem; }
+
+.ticket-detail header { margin-bottom: 1rem; }
+.persona-meta { color: var(--muted); font-size: 0.9rem; }
+.report-text {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.empty-state { color: var(--muted); }
