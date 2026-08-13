@@ -1,0 +1,14 @@
+{% if not tickets %}
+<p class="empty-state">No open tickets.</p>
+{% else %}
+{% for t in tickets %}
+<div class="ticket-row" data-priority="{{ t.system_priority.value }}"
+     hx-get="/ticket/{{ t.id }}" hx-target="#detail" hx-swap="innerHTML">
+  <span class="ticket-id">#{{ t.id }}</span>
+  <span class="ticket-priority">P{{ t.system_priority.value }}</span>
+  <span class="ticket-persona">{{ t.persona.name }}</span>
+  <span class="ticket-opening">{{ t.report_text }}</span>
+  <span class="ticket-sla" id="sla-{{ t.id }}">SLA in {{ ((t.deadline - now).total_seconds() // 60) | int }} min</span>
+</div>
+{% endfor %}
+{% endif %}
