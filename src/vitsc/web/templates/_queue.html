@@ -7,9 +7,7 @@
   <span class="ticket-id">#{{ t.id }}</span>
   <span class="ticket-priority">P{{ t.system_priority.value }}</span>
   <span class="ticket-persona">{{ t.persona.name }}</span>
-  {# report_text is system-authored (persona/fault generated), never technician
-     input, so it's safe to render without HTML-escaping its quotes/apostrophes. #}
-  <span class="ticket-opening">{{ t.report_text | safe }}</span>
+  <span class="ticket-opening">{{ t.report_text }}</span>
   <span class="ticket-sla" id="sla-{{ t.id }}">SLA in {{ ((t.deadline - now).total_seconds() // 60) | int }} min</span>
 </div>
 {% endfor %}

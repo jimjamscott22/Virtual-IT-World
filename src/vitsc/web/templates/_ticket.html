@@ -8,9 +8,7 @@
     <p class="persona-meta">{{ ticket.persona.role }} · {{ ticket.persona.department }}</p>
   </header>
 
-  {# report_text is system-authored (persona/fault generated), never technician
-     input, so it's safe to render without HTML-escaping its quotes/apostrophes. #}
-  <p class="report-text">{{ ticket.report_text | safe }}</p>
+  <p class="report-text">{{ ticket.report_text }}</p>
 
   <form hx-post="/ticket/{{ ticket.id }}/priority" hx-target="#detail" hx-swap="innerHTML">
     <label for="priority">Your triage priority</label>

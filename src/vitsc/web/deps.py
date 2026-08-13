@@ -24,6 +24,12 @@ class AppSession(BaseModel):
     store: Store
     logs: dict[int, ToolLog] = {}
     started_at: datetime
+    # Wall-clock (time.monotonic()) timestamp of the last time the simulated
+    # world.clock was advanced by an SSE connection. There is one player but
+    # can be several open SSE connections (multiple tabs, a reconnect) --
+    # without a shared marker each one would advance the same clock on its
+    # own schedule and time would run faster than one minute per second.
+    last_tick_at: float = 0.0
 
     @classmethod
     def build(

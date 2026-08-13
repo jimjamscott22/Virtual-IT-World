@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from markupsafe import escape
 
 from vitsc.web.app import create_app
 from vitsc.web.deps import AppSession
@@ -30,7 +31,10 @@ def test_ticket_detail_shows_the_report_but_not_the_fault(client):
     c, session = client
     ticket = session.queue.active()[0]
     body = c.get(f"/ticket/{ticket.id}").text
-    assert ticket.report_text in body
+    # report_text is rendered HTML-escaped (it's never trusted as markup, even
+    # though today's only source -- TemplatePersona -- can't produce any), so
+    # compare against the escaped form rather than the raw string.
+    assert str(escape(ticket.report_text)) in body
     assert ticket.fault_id not in body
     assert ticket.persona.name in body
 
