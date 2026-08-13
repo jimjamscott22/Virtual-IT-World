@@ -10,7 +10,7 @@ Full context lives in:
 - Design spec: `docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md`
 - Phase 1 plan: `docs/superpowers/plans/2026-08-07-phase-1-drill.md`
 
-Currently implemented: Phase 1, Tasks 1–14 — the world model, `SimulatedEnvironment`, the full v1 fault catalog (all ten faults across identity/network/printing/endpoint), the six player-facing tools, the whole persona layer (`PersonaCard`, the `Persona` protocol, `TemplatePersona`, and the LM Studio client with its leak filter), and the session layer (`Ticket`, priority/SLA, `SessionQueue`, grading, and the after-action report). Not yet implemented: SQLite persistence (Task 15) and the FastAPI + HTMX web portal (16–19). Next up: Task 15 in `docs/superpowers/plans/2026-08-07-phase-1-drill.md`.
+Currently implemented: Phase 1, Tasks 1–15 — the world model, `SimulatedEnvironment`, the full v1 fault catalog (all ten faults across identity/network/printing/endpoint), the six player-facing tools, the whole persona layer (`PersonaCard`, the `Persona` protocol, `TemplatePersona`, and the LM Studio client with its leak filter), the session layer (`Ticket`, priority/SLA, `SessionQueue`, grading, and the after-action report), and SQLite persistence for closed tickets (`session/store.py`: `Store`, `ClosedRecord`, `DomainStat`). Not yet implemented: the FastAPI + HTMX web portal (Tasks 16–19). Next up: Task 16 in `docs/superpowers/plans/2026-08-07-phase-1-drill.md`.
 
 ## Commands
 
