@@ -8,5 +8,29 @@
 </head>
 <body>
   {% block body %}{% endblock %}
+  <script>
+    // Drives the SLA clock: the simulated world.clock advances one minute per
+    // real second server-side (routes/events.py), pushed here over SSE. Each
+    // tick updates the per-ticket SLA countdowns in place; a non-empty
+    // "arrivals" list fires a full queue refresh instead of trying to splice
+    // in a new row.
+    if (window.EventSource) {
+      const source = new EventSource("/events");
+      source.onmessage = (event) => {
+        const payload = JSON.parse(event.data);
+        for (const t of payload.active) {
+          const el = document.getElementById(`sla-${t.id}`);
+          if (el) {
+            el.textContent = t.overdue
+              ? `${-t.remaining} min overdue`
+              : `SLA in ${t.remaining} min`;
+          }
+        }
+        if (payload.arrivals.length > 0) {
+          htmx.trigger("#queue", "refresh");
+        }
+      };
+    }
+  </script>
 </body>
 </html>

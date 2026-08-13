@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block body %}
+<header class="topbar">
+  <h1>Closed tickets</h1>
+  <p class="org-name"><a href="/">Back to queue</a></p>
+</header>
+<main class="history-page">
+  <section class="domain-stats">
+    <h2>Accuracy by domain</h2>
+    <table>
+      <thead><tr><th>Domain</th><th>Total</th><th>Correct</th><th>Accuracy</th></tr></thead>
+      <tbody>
+        {% for domain, stat in stats.items() %}
+        <tr>
+          <td>{{ domain }}</td>
+          <td>{{ stat.total }}</td>
+          <td>{{ stat.correct }}</td>
+          <td>{{ "%.0f"|format(stat.accuracy * 100) }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="closed-tickets">
+    <h2>History</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Ticket</th><th>Domain</th><th>Disposition</th><th>Correct</th>
+          <th>SLA</th><th>Elapsed (min)</th><th>Verdict</th><th>Closed</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr class="closed-row">
+          <td>#{{ r.ticket_id }}</td>
+          <td>{{ r.domain }}</td>
+          <td>{{ r.disposition }}</td>
+          <td>{{ "yes" if r.correct else "no" }}</td>
+          <td>{{ "within" if r.within_sla else "missed" }}</td>
+          <td>{{ "%.0f"|format(r.elapsed_minutes) }}</td>
+          <td>{{ r.verdict }}</td>
+          <td>{{ r.closed_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</main>
+{% endblock %}

@@ -1,0 +1,42 @@
+<article class="after-action">
+  <h2 class="verdict {{ 'verdict-good' if grade.correct else 'verdict-bad' }}">{{ report.verdict }}</h2>
+
+  <dl class="aa-summary">
+    <dt>Root cause</dt><dd>{{ report.root_cause }}</dd>
+    <dt>SLA</dt><dd>{{ "Within SLA" if report.within_sla else "Missed SLA" }}</dd>
+    <dt>Tool calls</dt><dd>{{ report.tool_calls_made }} made, {{ report.tool_calls_minimum }} minimum</dd>
+  </dl>
+
+  {% if report.shortest_path %}
+  <h3>Shortest diagnostic path</h3>
+  <ol class="shortest-path">
+    {% for step in report.shortest_path %}
+    <li>{{ step }}</li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+
+  {% if report.wasted_calls %}
+  <h3>Calls that didn't help</h3>
+  <ul class="wasted-calls">
+    {% for call in report.wasted_calls %}
+    <li>{{ call }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if report.collateral %}
+  <div class="warning collateral-warning">
+    <h3>Collateral damage</h3>
+    <ul>
+      {% for item in report.collateral %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if report.touched_before_asking %}
+  <p class="warning">You made changes before asking the user any questions.</p>
+  {% endif %}
+</article>

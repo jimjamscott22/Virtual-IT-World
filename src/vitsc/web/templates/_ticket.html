@@ -26,5 +26,11 @@
 
   <div id="tools" hx-get="/ticket/{{ ticket.id }}/tools" hx-trigger="load"></div>
   {% include "_chat.html" %}
-  <div id="close"></div>
+  <form id="close" hx-post="/ticket/{{ ticket.id }}/close" hx-target="#detail" hx-swap="innerHTML">
+    <select name="disposition">
+      <option value="resolved">Resolved</option>
+      <option value="escalated">Escalated</option>
+    </select>
+    <button type="submit">Close ticket</button>
+  </form>
 </article>

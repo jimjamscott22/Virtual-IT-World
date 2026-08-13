@@ -16,9 +16,13 @@ def create_app(session: AppSession) -> FastAPI:
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
     from vitsc.web.routes import chat as chat_routes
+    from vitsc.web.routes import close as close_routes
+    from vitsc.web.routes import events as event_routes
     from vitsc.web.routes import queue as queue_routes
     from vitsc.web.routes import tools as tool_routes
     app.include_router(queue_routes.router)
     app.include_router(tool_routes.router)
     app.include_router(chat_routes.router)
+    app.include_router(close_routes.router)
+    app.include_router(event_routes.router)
     return app
