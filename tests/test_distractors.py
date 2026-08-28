@@ -103,3 +103,18 @@ def test_distractor_does_not_break_a_canonical_fix(distractor, at):
                 assert not fault.is_present(env.world, p)
                 assert check_invariants(env.world, baseline) == []
             env.restore(snapshot)
+
+
+def test_catalog_has_at_least_five():
+    assert len(all_distractors()) >= 5
+
+
+def test_ids_are_unique_and_namespaced():
+    ids = [d.id for d in all_distractors()]
+    assert len(ids) == len(set(ids))
+    assert all("." in i for i in ids)
+
+
+def test_notes_are_written_for_a_reader():
+    for d in all_distractors():
+        assert d.note and d.note[0].isupper()

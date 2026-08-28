@@ -1,6 +1,6 @@
 # Phase 2a handoff
 
-Written at the end of the session that landed Tasks 1–3. Delete this file when
+Written at the end of the session that landed Task 4. Delete this file when
 Phase 2a is complete — it records *situational* state (branch, PR, what is
 half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
@@ -8,110 +8,124 @@ half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
 | | |
 | --- | --- |
-| Branch | `claude/next-app-task-g4vpf2` |
-| Pull request | [#4](https://github.com/jimjamscott22/Virtual-IT-World/pull/4) — **open, draft, not merged** |
-| Base | `main` (4 commits ahead) |
-| CI | Green (Pylint, on 3.12 and 3.13) |
-| Tests | 376 passing, 4 skipped |
+| Branch | `claude/distractor-catalog-session-seeding-yufnrd` |
+| Base | `main` (Tasks 1–3 already merged via PR #4) |
+| Tests | 477 passing, 0 skipped |
 | Lint | 10.00/10 on `src` and on `tests` |
 
-The 4 skips are expected and deliberate: the distractor conformance harness is
-parametrized over a catalog that is empty until Task 4.
+The distractor conformance harness now runs real cases (previously 4 skips
+against an empty catalog); the 4 skips are gone.
 
-## What landed
+## What landed this session
 
-Against `docs/superpowers/plans/2026-08-14-phase-2a-depth-mechanics.md`:
+Task 4 from `docs/superpowers/plans/2026-08-14-phase-2a-depth-mechanics.md`
+(line 538) — **the distractor catalog and session seeding**:
 
-- **Task 1 — bind leak terms per ticket.** `Persona.for_fault(leak_terms)`;
-  `TemplatePersona` returns itself, `LMStudioPersona` returns a copy.
-  `SessionQueue.persona_for(ticket)` resolves the binding so the web layer
-  never imports the fault registry.
-- **Task 2 — model-backed persona wired into the app.** `persona/config.py`
-  (`VITSC_PERSONA` / `VITSC_BASE_URL` / `VITSC_MODEL`), `AppSession.degraded`,
-  and a degraded banner driven from the SSE payload.
-- **Task 3 — `Distractor` protocol, registry, conformance harness.** Mechanism
-  only; `distractors/catalog.py` is intentionally empty.
-- **Plus a CI fix** (not in the plan): the Pylint workflow was the unmodified
-  GitHub starter template and had failed on *every* run since it was added,
-  including on `main`. It is now a real check.
+- `distractors/catalog.py`: five distractors — `disk.moderately_low`,
+  `service.wsearch_stopped`, `eventlog.old_disk_warning`,
+  `printer.offline_unused` (placements is `[]` today — every seeded printer
+  is already installed somewhere; it starts applying once Phase 2b grows the
+  estate), and `drive.stale_mapping`.
+- `session/queue.py`: `seed_distractors(world, rng, count)`, called from
+  `SessionQueue.__init__` *before* `capture_baseline`, result stored on
+  `self.distractors`. `distractor_count` defaults to 0 (existing tests stay
+  deterministic).
+- `web/deps.py`: `AppSession.build` passes `distractor_count=3`.
+- `tests/test_distractor_registry.py`: the empty-catalog assertion flipped to
+  `test_the_catalog_is_not_empty`.
+- **One bug fix not in the plan's file list**: `env/simulated.py:_read_share_access`
+  indexed `world.shares[machine.mapped_drives[q.target]]` directly. Nothing
+  before `drive.stale_mapping` ever put a value in `mapped_drives` that
+  wasn't a real `world.shares` key, so this was latent — but a player can
+  type `Get-PSDrive -Name Z:` freely (`PowerShellConsole.target_key` passes
+  whatever drive letter through), which would `KeyError` into an unhandled
+  500 the moment that distractor was seeded. Fixed to return the same
+  "network path was not found" text the DNS-failure branch already renders.
+  Recorded in the deviations table in `CLAUDE.md`/`AGENTS.md`.
+- `pyproject.toml`: `max-attributes = 8` added to `[tool.pylint.design]`,
+  following the existing "raise a little rather than disable" convention —
+  `SessionQueue` gained `distractors` as its 8th attribute.
+- Verified the harness actually fails: temporarily set `disk.moderately_low`
+  to a fault-flipping value (0.5 GB, under `endpoint.disk_full`'s threshold)
+  and confirmed `test_distractor_never_flips_a_fault` caught it, per the
+  "prove a new harness actually fails" convention from Task 3.
 
-Every step for Tasks 1–3 is ticked in the plan file.
+One incidental fix: `tests/test_web_close.py`'s fixture used `seed=1`, which
+after distractor seeding started consuming from the RNG stream landed on
+`endpoint.failing_disk` (an escalate-only fault with no canonical
+resolution) as the first ticket, breaking two tests that assumed a
+resolvable fault. Changed to `seed=0`, which still deals a resolvable fault
+after seeding.
 
-## Next: Task 4
+## Next: Task 5
 
-**The distractor catalog and session seeding** — plan line 538. Creates
-`distractors/catalog.py` (five distractors), and modifies `session/queue.py`
-and `web/deps.py` to seed them at session start.
+**Cascade data model — reporters, sibling tickets, plural arrivals** — plan
+line 652. Adds `FaultBase` (defaults for `kb_articles`, `escalation_reason`,
+`escalation_evidence`, `reporters`), retrofits all ten catalog faults to
+inherit it, extends `Ticket` with `cascade_id`, and changes
+`SessionQueue.open_ticket()` to return `list[Ticket]` (`open_one()` stays
+for single-ticket callers). This is a wider-reaching change than Task 4 —
+`grep -rn "open_ticket"` across `tests/` and `src/` first, per the plan's own
+Step 5, to find every caller that needs updating.
 
-The one thing to get right, from the plan's own risk list: distractors are
-seeded **once at session start, before the first baseline is captured**. They
-are world state the technician inherits, so `capture_baseline` must run after
-them — otherwise a pre-existing stopped service reads as the technician's own
-collateral damage. Same capture-after-apply reasoning `world/invariants.py`
-already documents for faults.
-
-Also flagged in the plan: `endpoint.disk_full` fires below 2.0 GB free, so the
-low-disk distractor must sit well above that (8–15 GB against a 120 GB norm) —
-visibly odd, mechanically harmless. The harness proves it, but pick the numbers
-deliberately.
+Task 7 (the reference cascade fault, `print.server_spooler_stopped`) is what
+actually exercises the cascade path end to end; Task 5's own tests are
+expected to fail or xfail against it until Task 7 lands.
 
 ## Conventions this codebase expects
 
 Things that are easy to get wrong and are not obvious from the code alone.
 
-1. **Register instances, not classes.** `register_distractor(Thing())` at the
-   bottom of the module, matching `faults/catalog/identity.py`. A bare class
-   fails at *collection* time with a missing `self`.
-2. **Deviations from the plan get recorded.** `CLAUDE.md` and `AGENTS.md` both
-   carry a "Where the code deliberately diverges from the plan" table. The plan
-   contains full code listings and several are wrong against the real catalog;
-   when you correct one, add a row rather than silently fixing it. Both files
-   are kept identical.
+1. **Register instances, not classes.** `register_distractor(Thing())` /
+   `register(Thing())` at the bottom of the module. A bare class fails at
+   *collection* time with a missing `self`.
+2. **Deviations from the plan get recorded.** `CLAUDE.md` and `AGENTS.md`
+   both carry a "Where the code deliberately diverges from the plan" table.
+   When you correct something the plan gets wrong, or fix something the plan
+   doesn't mention, add a row rather than silently fixing it. Both files are
+   kept identical except their first-line title/tool-name.
 3. **Lint is two commands.** `uv run pylint src` keeps the strict set;
-   `tests` relaxes four pytest idioms. Both are in the Commands section of
-   `CLAUDE.md` and in `.github/workflows/pylint.yml`. Prefer fixing a finding,
-   or suppressing it at its own line, over adding to the global disable list in
-   `pyproject.toml`.
+   `tests` relaxes four pytest idioms. Prefer fixing a finding, or
+   suppressing it at its own line, over adding to the global disable list in
+   `pyproject.toml` — a design-limit bump (`max-locals`, `max-args`,
+   `max-attributes`) is one line in `[tool.pylint.design]` with a comment
+   explaining which module needed it.
 4. **`tests/conftest.py` clears `VITSC_*` for every test.** `AppSession.build`
    reads the environment now, so without it a developer with
    `VITSC_PERSONA=lmstudio` exported would point the whole suite at a local
    model. Do not remove it.
-5. **Prove a new harness actually fails.** The distractor harness was verified
-   by temporarily registering two dishonest distractors and confirming each was
-   rejected by the right test. A conformance harness that has never failed is
-   not evidence of anything.
+5. **Prove a new harness actually fails.** Verified again this session:
+   temporarily break a distractor so it flips a real fault, confirm the
+   right test in `tests/test_distractors.py` catches it, then revert. A
+   conformance harness that has never failed is not evidence of anything.
+6. **A seed baked into a fixture is coupled to RNG consumption order.**
+   Adding `distractor_count` to `SessionQueue.__init__` moved every
+   downstream `rng.choice()` call, which silently changed which fault a
+   fixed `seed=N` deals first in any test that builds a real `AppSession`.
+   If a seeded test starts failing after a scheduling change, check whether
+   the picked fault changed before assuming the test's own logic broke.
 
 ## Open threads
 
-Not blocking Task 4, but real, and none of them are recorded anywhere else.
+Not blocking Task 5, but real, and none of them are recorded anywhere else.
 
 - **`ipconfig` rendering has no test coverage.** `env/simulated.py`'s
   `_read_net_ipconfig` builds `ipconfig`-shaped output whose dotted-leader
-  spacing deliberately mimics the real utility, and nothing asserts on it. A
-  line-length fix during the CI work had to be verified by diffing rendered
-  output by hand (across every machine plus the no-lease APIPA path) because
-  the suite could not tell whether it had broken. Worth a real test.
+  spacing deliberately mimics the real utility, and nothing asserts on it.
+  Worth a real test.
 - **The LM Studio path is still unverified.** No environment used so far has
-  network access to a local LM Studio instance, so the model-backed half of the
-  Definition of Done has never been exercised. `docs/verifying-lmstudio.md` is
-  the manual procedure; it must be run on a machine with the model loaded, and
-  a green pipeline does **not** stand in for it.
-- **The 4 skipped tests will stay silently green if Task 4 slips.**
-  `tests/test_distractor_registry.py::test_the_catalog_is_importable_and_currently_empty`
-  asserts the empty state on purpose, so it fails the moment the catalog is
-  filled — flip it to a non-empty assertion then, mirroring
-  `test_catalog.py::test_the_catalog_is_not_empty`.
-- **PR #4 is a draft carrying four commits across three tasks.** If that is too
-  much to review at once, the CI fix (`f3b0999`) is independent of the persona
-  work and could be split onto its own branch.
+  network access to a local LM Studio instance, so the model-backed half of
+  the Definition of Done has never been exercised. `docs/verifying-lmstudio.md`
+  is the manual procedure; it must be run on a machine with the model
+  loaded, and a green pipeline does **not** stand in for it.
 
 ## Resuming
 
 ```bash
-git checkout claude/next-app-task-g4vpf2
+git checkout claude/distractor-catalog-session-seeding-yufnrd
 uv sync
-uv run pytest          # expect 376 passed, 4 skipped
+uv run pytest          # expect 477 passed, 0 skipped
 ```
 
-Then read Task 4 in the plan (line 538) and continue. `CLAUDE.md` is the
+Then read Task 5 in the plan (line 652) and continue. `CLAUDE.md` is the
 architectural brief and is current as of this handoff.

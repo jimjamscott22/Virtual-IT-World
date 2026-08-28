@@ -265,7 +265,14 @@ class SimulatedEnvironment:
         machine = self.world.machines.get(q.args.get("from", "").upper())
         if machine is None or q.target not in machine.mapped_drives:
             return Observation(ok=False, rendered=f"{q.target} is not mapped.")
-        share = self.world.shares[machine.mapped_drives[q.target]]
+        share = self.world.shares.get(machine.mapped_drives[q.target])
+        if share is None:
+            return Observation(
+                ok=False,
+                data={"reason": "stale"},
+                rendered=f"{q.target} is not accessible. "
+                "The network path was not found.",
+            )
         if self._resolve(share.host, machine.hostname) is None:
             return Observation(
                 ok=False,

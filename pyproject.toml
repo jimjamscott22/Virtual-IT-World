@@ -38,11 +38,13 @@ addopts = "-q"
 ignore-paths = ["^\\.venv/.*$"]
 
 [tool.pylint.design]
-# Both were one over pylint's default when this config was written
-# (`world/seed.py` at 16 locals, `tools/base.py` at 6 arguments). Raised a
-# little rather than disabled, so the checks still catch genuine sprawl.
+# All three were one over pylint's default when raised (`world/seed.py` at 16
+# locals, `tools/base.py` at 6 arguments, `SessionQueue` at 8 attributes after
+# Phase 2a Task 4 added `distractors`). Raised a little rather than disabled,
+# so the checks still catch genuine sprawl.
 max-locals = 20
 max-args = 8
+max-attributes = 8
 
 [tool.pylint."messages control"]
 # Every entry here is a check this project has deliberately decided against,

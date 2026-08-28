@@ -50,7 +50,7 @@ class AppSession(BaseModel):
         return cls(
             env=env,
             queue=SessionQueue(
-                env=env, persona=persona, rng=Random(seed), now=now
+                env=env, persona=persona, rng=Random(seed), now=now, distractor_count=3
             ),
             store=store,
             started_at=now,

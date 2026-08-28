@@ -9,6 +9,7 @@ fault's own vocabulary.
 from datetime import datetime, timedelta
 from random import Random
 
+from vitsc.distractors.registry import all_distractors
 from vitsc.env.simulated import SimulatedEnvironment
 from vitsc.faults.base import Fault, Placement
 from vitsc.faults.registry import all_faults, get_fault
@@ -20,6 +21,29 @@ from vitsc.world.models import World
 
 MAX_ACTIVE = 4
 ARRIVAL_MINUTES = 10
+
+
+def seed_distractors(world: World, rng: Random, count: int) -> list[tuple[str, Placement]]:
+    """Apply `count` distinct distractors before the first baseline capture.
+
+    Order matters: these are anomalies the technician *inherits*, so the
+    baseline must be captured after them. Capturing first would report the
+    world's own pre-existing quirks as the technician's collateral damage —
+    the same capture-after-apply rule `world/invariants.py` documents.
+    """
+    candidates = [(d, at) for d in all_distractors() for at in d.placements(world)]
+    rng.shuffle(candidates)
+    seeded: list[tuple[str, Placement]] = []
+    used: set[str] = set()
+    for distractor, at in candidates:
+        if len(seeded) >= count:
+            break
+        if distractor.id in used:
+            continue
+        distractor.apply(world, at, rng)
+        used.add(distractor.id)
+        seeded.append((distractor.id, at))
+    return seeded
 
 
 def forgive(standing: Baseline, before: Baseline, after: Baseline) -> Baseline:
@@ -71,11 +95,15 @@ class SessionQueue:
         persona: Persona,
         rng: Random,
         now: datetime,
+        distractor_count: int = 0,
     ) -> None:
         self.env = env
         self.persona = persona
         self.rng = rng
         self.tickets: list[Ticket] = []
+        # Seeded before the baseline is captured, so this noise is inherited
+        # world state rather than the technician's own collateral damage.
+        self.distractors = seed_distractors(env.world, rng, distractor_count)
         self.baseline: Baseline = capture_baseline(env.world)
         self._next_id = 1
         self._last_arrival = now

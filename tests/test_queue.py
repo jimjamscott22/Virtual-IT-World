@@ -160,3 +160,19 @@ def test_the_same_seed_deals_the_same_session():
 
 def test_different_seeds_deal_different_sessions():
     assert _dealt(7) != _dealt(8)
+
+
+def test_session_seeds_distractors_before_the_baseline():
+    env = SimulatedEnvironment(load_world())
+    queue = SessionQueue(
+        env=env, persona=TemplatePersona(), rng=Random(7), now=NOW, distractor_count=3
+    )
+    assert len(queue.distractors) == 3
+    # Seeded state is inherited, not collateral damage.
+    assert check_invariants(env.world, queue.baseline) == []
+
+
+def test_distractors_are_off_by_default_for_deterministic_tests():
+    env = SimulatedEnvironment(load_world())
+    queue = SessionQueue(env=env, persona=TemplatePersona(), rng=Random(7), now=NOW)
+    assert queue.distractors == []

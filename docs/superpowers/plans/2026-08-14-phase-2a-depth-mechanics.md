@@ -546,7 +546,7 @@ git add -A && git commit -m "feat(distractors): add the Distractor protocol and 
 - Consumes: Task 3's protocol and registry.
 - Produces: five distractors; `seed_distractors(world, rng, count)`; `SessionQueue.distractors`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Extend `tests/test_distractors.py`:
 
@@ -585,12 +585,12 @@ def test_distractors_are_off_by_default_for_deterministic_tests():
     assert queue.distractors == []
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_distractors.py tests/test_queue.py -v`
 Expected: FAIL — no `vitsc.distractors.catalog`, `SessionQueue` takes no `distractor_count`.
 
-- [ ] **Step 3: Author the five distractors**
+- [x] **Step 3: Author the five distractors**
 
 `distractors/catalog.py`. Each must be plausible in a real estate of Windows machines, visible through an existing query, and mechanically inert:
 
@@ -606,7 +606,7 @@ Two rules the harness will catch but the author should hold anyway: never touch 
 
 For the offline-printer placement filter, note that all three seeded printers are installed on some workstation, so this distractor's `placements()` may legitimately return `[]` today and start applying in 2b when the estate grows. Returning `[]` is a supported answer — the harness parametrizes over zero cases and the seeder skips it.
 
-- [ ] **Step 4: Seed them at session start**
+- [x] **Step 4: Seed them at session start**
 
 In `session/queue.py`:
 
@@ -636,12 +636,12 @@ def seed_distractors(world: World, rng: Random, count: int) -> list[tuple[str, P
 
 `SessionQueue.__init__` gains `distractor_count: int = 0`, calls `seed_distractors` **before** `capture_baseline`, and stores the result on `self.distractors`. Default 0 keeps every existing test deterministic; `AppSession.build` passes 3 so a real session always has noise.
 
-- [ ] **Step 5: Run the suite**
+- [x] **Step 5: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: all green, with the distractor harness now covering ~5 cases per test.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat(distractors): add the v1 catalog and seed it at session start"

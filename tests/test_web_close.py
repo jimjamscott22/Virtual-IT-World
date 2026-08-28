@@ -8,7 +8,7 @@ from vitsc.web.deps import AppSession
 
 @pytest.fixture
 def client(tmp_path):
-    session = AppSession.build(db_path=tmp_path / "t.sqlite3", seed=1)
+    session = AppSession.build(db_path=tmp_path / "t.sqlite3", seed=0)
     session.queue.open_ticket()
     return TestClient(create_app(session)), session
 
