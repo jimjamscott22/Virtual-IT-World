@@ -659,7 +659,7 @@ git add -A && git commit -m "feat(distractors): add the v1 catalog and seed it a
 - Consumes: `Fault`, `Placement`, `SessionQueue`.
 - Produces: `FaultBase`; `Fault.reporters`; `Ticket.cascade_id`; `SessionQueue.open_ticket() -> list[Ticket]`, `open_one() -> Ticket | None`; `CASCADE_MAX`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_cascade.py`:
 
@@ -737,12 +737,12 @@ def test_open_one_is_still_available_for_single_ticket_tests():
     assert ticket is not None and ticket.id == 1
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_cascade.py -v`
 Expected: FAIL — no `reporters`, no `open_cascade`, no `print.server_spooler_stopped` (Task 7 adds the fault; this task may xfail that case and Task 7 removes the marker).
 
-- [ ] **Step 3: Add `FaultBase` and retrofit the ten**
+- [x] **Step 3: Add `FaultBase` and retrofit the ten**
 
 In `faults/base.py`:
 
@@ -771,7 +771,7 @@ class FaultBase:
 
 Add the four members to the `Fault` protocol, and make each of the ten catalog classes inherit `FaultBase`. No other change to them; `tests/test_catalog.py` must stay green throughout.
 
-- [ ] **Step 4: Extend the ticket and the scheduler**
+- [x] **Step 4: Extend the ticket and the scheduler**
 
 `session/ticket.py`: add `cascade_id: str | None = None`. Change `priority_for` to take the reporter count — impact on several people outranks a single senior user:
 
@@ -800,16 +800,16 @@ def priority_for(fault: Fault, user: ADUser, reporters: int = 1) -> Priority:
 
 Each sibling gets its own `PersonaCard` (different person, different literacy and mood) and its own `report_text` from that person's persona — three tickets describing one outage in three voices is the thing being drilled.
 
-- [ ] **Step 5: Update every caller**
+- [x] **Step 5: Update every caller**
 
 `grep -rn "open_ticket" tests/ src/` and update: `tests/test_queue.py`, `tests/test_web_*.py` fixtures, `tests/test_end_to_end.py`, `tests/test_grading.py`. Prefer `open_one()` in fixtures that want exactly one ticket.
 
-- [ ] **Step 6: Run the suite**
+- [x] **Step 6: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: green except the `print.server_spooler_stopped` cases, which Task 7 delivers.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A && git commit -m "feat(session): add cascade reporters and plural ticket arrivals"

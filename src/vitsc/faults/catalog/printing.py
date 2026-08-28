@@ -2,6 +2,7 @@ from random import Random
 
 from vitsc.env.base import Action, Query
 from vitsc.faults.base import (
+    FaultBase,
     PLACEHOLDER,
     PLACEHOLDER_MACHINE,
     PLACEHOLDER_PRINTER,
@@ -23,7 +24,7 @@ def _workstations_with_printers(world: World) -> list[Placement]:
     ]
 
 
-class SpoolerStopped:
+class SpoolerStopped(FaultBase):
     id = "print.spooler_stopped"
     domain = "printing"
     difficulty = 1
@@ -68,7 +69,7 @@ class SpoolerStopped:
         ]
 
 
-class WrongDriver:
+class WrongDriver(FaultBase):
     id = "print.wrong_driver"
     domain = "printing"
     difficulty = 3

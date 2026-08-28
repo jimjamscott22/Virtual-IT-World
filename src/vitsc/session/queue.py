@@ -21,6 +21,7 @@ from vitsc.world.models import World
 
 MAX_ACTIVE = 4
 ARRIVAL_MINUTES = 10
+CASCADE_MAX = 3
 
 
 def seed_distractors(world: World, rng: Random, count: int) -> list[tuple[str, Placement]]:
@@ -76,7 +77,7 @@ def forgive(standing: Baseline, before: Baseline, after: Baseline) -> Baseline:
 
 
 def reporter_sam(world: World, at: Placement) -> str | None:
-    """Who phones this in.
+    """Who phones this in, for a fault that does not declare its own reporters.
 
     User placements name the person directly. Machine placements resolve
     through `assigned_to`, and printer placements carry a `hostname/printer`
@@ -86,6 +87,22 @@ def reporter_sam(world: World, at: Placement) -> str | None:
         return at.key
     machine = world.machines.get(at.key.split("/")[0])
     return machine.assigned_to if machine else None
+
+
+def resolved_reporters(world: World, fault: Fault, at: Placement) -> list[str]:
+    """Who actually gets a ticket for this fault instance.
+
+    `fault.reporters()` names an explicit list for faults that affect several
+    people at once, which is what makes a fault a cascade. Every other fault
+    returns `None` (`FaultBase`'s default), which reduces to the single person
+    `reporter_sam` resolves. Anyone missing from `world.org.users` is
+    dropped — a malformed reporter list must not crash ticket creation.
+    """
+    reporters = fault.reporters(world, at)
+    if reporters is None:
+        single = reporter_sam(world, at)
+        reporters = [single] if single is not None else []
+    return [sam for sam in reporters if sam in world.org.users]
 
 
 class SessionQueue:
@@ -106,6 +123,7 @@ class SessionQueue:
         self.distractors = seed_distractors(env.world, rng, distractor_count)
         self.baseline: Baseline = capture_baseline(env.world)
         self._next_id = 1
+        self._next_cascade_id = 1
         self._last_arrival = now
 
     def active(self) -> list[Ticket]:
@@ -135,18 +153,17 @@ class SessionQueue:
             # A fault already present has no one left to report it — this also
             # covers a closed ticket the technician never actually fixed.
             and not fault.is_present(self.env.world, placement)
-            and reporter_sam(self.env.world, placement) is not None
+            and resolved_reporters(self.env.world, fault, placement)
         ]
 
-    def open_ticket(self) -> Ticket | None:
-        if len(self.active()) >= MAX_ACTIVE:
-            return None
+    def _open(self, fault: Fault, placement: Placement) -> list[Ticket]:
+        """Apply `fault` at `placement` and build one ticket per reporter.
 
-        candidates = self._candidates()
-        if not candidates:
-            return None
-
-        fault, placement = self.rng.choice(candidates)
+        Shared by `open_ticket()` (which picks the fault) and `open_cascade()`
+        (which is handed one), so the actual bookkeeping — applying the fault,
+        forgiving its own damage, capping the reporter count, minting tickets —
+        exists exactly once.
+        """
         before = capture_baseline(self.env.world)
         fault.apply(self.env.world, placement, self.rng)
 
@@ -154,37 +171,88 @@ class SessionQueue:
         # while keeping every expectation the technician has already broken.
         self.baseline = forgive(self.baseline, before, capture_baseline(self.env.world))
 
-        user = self.env.world.org.users[reporter_sam(self.env.world, placement)]
-        card = card_for(user, self.rng)
-        symptoms = fault.symptoms(self.env.world, placement)
-        priority = priority_for(fault, user)
+        reporters = resolved_reporters(self.env.world, fault, placement)
+        room = MAX_ACTIVE - len(self.active())
+        count = max(0, min(len(reporters), CASCADE_MAX, room))
+        if count == 0:
+            return []
+        sampled = self.rng.sample(reporters, count)
 
-        ticket = Ticket(
-            id=self._next_id,
-            fault_id=fault.id,
-            placement=placement,
-            persona=card,
-            symptoms=symptoms,
-            # Bound the same way `persona_for` binds an open ticket; the
-            # fault is already in hand here, so no registry round-trip.
-            report_text=self.persona.for_fault(fault.leak_terms).initial_report(
-                card, symptoms
-            ),
-            system_priority=priority,
-            opened_at=self.env.world.clock,
-            sla_minutes=SLA_MINUTES[priority],
-        )
-        self._next_id += 1
-        self.tickets.append(ticket)
-        return ticket
+        cascade_id = None
+        if count > 1:
+            cascade_id = f"C{self._next_cascade_id}"
+            self._next_cascade_id += 1
+
+        symptoms = fault.symptoms(self.env.world, placement)
+        tickets: list[Ticket] = []
+        for sam in sampled:
+            user = self.env.world.org.users[sam]
+            # Each sibling gets its own card and its own persona-spoken report
+            # text — three tickets describing one outage in three voices.
+            card = card_for(user, self.rng)
+            priority = priority_for(fault, user, reporters=count)
+            ticket = Ticket(
+                id=self._next_id,
+                fault_id=fault.id,
+                placement=placement,
+                persona=card,
+                symptoms=symptoms,
+                # Bound the same way `persona_for` binds an open ticket; the
+                # fault is already in hand here, so no registry round-trip.
+                report_text=self.persona.for_fault(fault.leak_terms).initial_report(
+                    card, symptoms
+                ),
+                system_priority=priority,
+                opened_at=self.env.world.clock,
+                sla_minutes=SLA_MINUTES[priority],
+                cascade_id=cascade_id,
+            )
+            self._next_id += 1
+            tickets.append(ticket)
+        self.tickets.extend(tickets)
+        return tickets
+
+    def open_ticket(self) -> list[Ticket]:
+        room = MAX_ACTIVE - len(self.active())
+        if room <= 0:
+            return []
+
+        # A candidate whose full cascade would not fit in the room left is
+        # skipped entirely rather than dealt partially.
+        candidates = [
+            (fault, placement)
+            for fault, placement in self._candidates()
+            if min(len(resolved_reporters(self.env.world, fault, placement)), CASCADE_MAX)
+            <= room
+        ]
+        if not candidates:
+            return []
+
+        fault, placement = self.rng.choice(candidates)
+        return self._open(fault, placement)
+
+    def open_one(self) -> Ticket | None:
+        """The first ticket of whatever `open_ticket()` deals, for callers
+        that only ever want a single arrival."""
+        tickets = self.open_ticket()
+        return tickets[0] if tickets else None
+
+    def open_cascade(self, fault: Fault) -> list[Ticket]:
+        """Open a named fault's cascade directly, bypassing the scheduler.
+
+        For tests that want a specific cascade fault rather than whatever the
+        random candidate pool would deal.
+        """
+        placement = fault.placements(self.env.world)[0]
+        return self._open(fault, placement)
 
     def tick(self, now: datetime) -> list[Ticket]:
         """Open new tickets as the arrival interval elapses."""
         arrivals: list[Ticket] = []
         while now - self._last_arrival >= timedelta(minutes=ARRIVAL_MINUTES):
             self._last_arrival += timedelta(minutes=ARRIVAL_MINUTES)
-            ticket = self.open_ticket()
-            if ticket is None:
+            tickets = self.open_ticket()
+            if not tickets:
                 break
-            arrivals.append(ticket)
+            arrivals.extend(tickets)
         return arrivals

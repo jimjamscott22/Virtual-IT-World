@@ -44,14 +44,18 @@ class Disposition(str, Enum):
     ESCALATED = "escalated"
 
 
-def priority_for(fault: Fault, user: ADUser) -> Priority:
+def priority_for(fault: Fault, user: ADUser, reporters: int = 1) -> Priority:
     """The *system's* triage call, which the player's own is graded against.
 
-    Impact first, then who is blocked, then how gnarly it looks — the same
-    order a real queue triages in.
+    Impact first, then who is blocked, then how gnarly it looks. A cascade is
+    impact by definition: three people stopped is a P1 whatever the fault's
+    own difficulty says, which is why the count is an argument and not a
+    lookup.
     """
-    if fault.id in WORK_STOPPING:
+    if fault.id in WORK_STOPPING or reporters >= 3:
         return Priority.P1
+    if reporters > 1:
+        return Priority.P2
     if user.title in SENIOR_TITLES:
         return Priority.P2
     return Priority.P3 if fault.difficulty >= 2 else Priority.P4
@@ -70,6 +74,9 @@ class Ticket(BaseModel):
     user_priority: Priority | None = None
     opened_at: datetime
     sla_minutes: int
+    # Shared by every sibling ticket the same fault instance produced. None
+    # for the ordinary single-reporter case.
+    cascade_id: str | None = None
     state: TicketState = TicketState.OPEN
     disposition: Disposition | None = None
     closed_at: datetime | None = None

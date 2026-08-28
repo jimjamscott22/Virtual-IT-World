@@ -9,7 +9,7 @@ from vitsc.web.deps import AppSession
 @pytest.fixture
 def client(tmp_path):
     session = AppSession.build(db_path=tmp_path / "t.sqlite3", seed=1)
-    session.queue.open_ticket()
+    session.queue.open_one()
     return TestClient(create_app(session)), session
 
 
@@ -22,7 +22,7 @@ def test_index_renders_the_queue(client):
 
 def test_queue_partial_lists_active_tickets(client):
     c, session = client
-    session.queue.open_ticket()
+    session.queue.open_one()
     body = c.get("/queue").text
     assert body.count('class="ticket-row"') == len(session.queue.active())
 

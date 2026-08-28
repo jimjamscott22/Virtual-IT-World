@@ -58,7 +58,7 @@ def test_a_full_ticket_can_be_worked_through_http(tmp_path, seed):
     session = AppSession.build(db_path=tmp_path / f"e2e{seed}.sqlite3", seed=seed)
     client = TestClient(create_app(session))
 
-    ticket = session.queue.open_ticket()
+    ticket = session.queue.open_one()
     assert ticket is not None
 
     # The queue and the detail view render without revealing the answer.

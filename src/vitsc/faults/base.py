@@ -53,6 +53,9 @@ class Fault(Protocol):
     supported_backends: frozenset[str]
     leak_terms: list[str]
     escalation_is_correct: bool
+    kb_articles: list[str]
+    escalation_reason: str
+    escalation_evidence: list[Query]
 
     def placements(self, world: World) -> list[Placement]: ...
     def apply(self, world: World, at: Placement, rng: Random) -> None: ...
@@ -60,6 +63,29 @@ class Fault(Protocol):
     def symptoms(self, world: World, at: Placement) -> UserSymptoms: ...
     def diagnostic_path(self, at: Placement) -> list[Query]: ...
     def canonical_resolutions(self) -> list[ResolutionPath]: ...
+    def reporters(self, world: World, at: Placement) -> list[str] | None: ...
+
+
+class FaultBase:
+    """Defaults for every optional `Fault` member.
+
+    The protocol grew in Phase 2a. Ten faults predate it, so the defaults live
+    here and the catalog inherits them — one mechanical change instead of ten
+    copy-pasted stubs, and a 2b fault that overrides nothing still conforms.
+    """
+
+    kb_articles: list[str] = []
+    escalation_reason: str = ""
+    escalation_evidence: list[Query] = []
+
+    def reporters(self, world: World, at: Placement) -> list[str] | None:
+        """Who phones this in.
+
+        `None` means "whoever the placement points at" — the session layer
+        owns that resolution because it depends on `assigned_to`, which is
+        queue logic rather than fault data. A list makes the fault a cascade.
+        """
+        return None
 
 
 def _sentinels(at: Placement, world: World) -> dict[str, str]:

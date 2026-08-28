@@ -121,3 +121,18 @@ def test_every_registered_fault_gets_a_priority_and_an_sla():
     for fault in all_faults():
         priority = priority_for(fault, user)
         assert priority in SLA_MINUTES
+
+
+def test_three_or_more_reporters_is_always_p1():
+    """A cascade is impact by definition, whatever the fault's own difficulty."""
+    world = load_world()
+    user = world.org.users["k.lindqvist"]
+    fault = get_fault("print.spooler_stopped")
+    assert priority_for(fault, user, reporters=3) is Priority.P1
+
+
+def test_two_reporters_outranks_a_single_reporter_of_the_same_fault():
+    world = load_world()
+    user = world.org.users["k.lindqvist"]
+    fault = get_fault("print.spooler_stopped")
+    assert priority_for(fault, user, reporters=2).value < priority_for(fault, user).value
