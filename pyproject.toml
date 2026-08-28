@@ -25,9 +25,62 @@ build-backend = "uv_build"
 dev = [
     "httpx>=0.28.1",
     "markupsafe>=3.0.3",
+    "pylint>=4.0.7",
     "pytest>=9.1.1",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.pylint.main]
+# Lint the package and the suite only; `uv run pylint src tests` in CI.
+ignore-paths = ["^\\.venv/.*$"]
+
+[tool.pylint.design]
+# Both were one over pylint's default when this config was written
+# (`world/seed.py` at 16 locals, `tools/base.py` at 6 arguments). Raised a
+# little rather than disabled, so the checks still catch genuine sprawl.
+max-locals = 20
+max-args = 8
+
+[tool.pylint."messages control"]
+# Every entry here is a check this project has deliberately decided against,
+# with the reason it does not apply. Nothing is disabled to raise the score:
+# findings that were real (long lines, a redundant ellipsis, a `dict()` call)
+# were fixed in the code, and the three false positives pylint cannot infer
+# (the `getattr` dispatch, pydantic's `default_factory`) carry narrow inline
+# `# pylint: disable` comments at their own line instead of being turned off
+# globally. Revisit any of these rather than adding to the list by reflex.
+disable = [
+    # This codebase documents at module and class level, in prose, and leaves
+    # short functions to speak for themselves. Requiring a docstring on all
+    # 300-odd functions and every test would add noise, not information.
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+
+    # Deliberate, and load-bearing. `vitsc.web.app` imports its route modules
+    # while each route defers `from vitsc.web.app import templates` into the
+    # handler body; that deferral is what breaks the cycle. The registry's
+    # `import vitsc.faults.catalog` exists for its registration side effect,
+    # and `openai` is imported inside `make_client()` so the suite never
+    # needs it. See the Architecture section of CLAUDE.md.
+    "cyclic-import",
+    "import-outside-toplevel",
+
+    # The architecture is protocol-based: `Fault.symptoms(world, at)` and
+    # `Fault.apply(..., rng)` take their full signature whether or not a
+    # given fault reads every parameter, because the caller dispatches
+    # against the protocol. An implementation ignoring an argument is
+    # conformance, not dead code.
+    "unused-argument",
+
+    # Pydantic entity models and small holders (`_Degradation`) are data, not
+    # service objects; a public-method count says nothing useful about them.
+    "too-few-public-methods",
+
+    # Fires across independent test modules that legitimately share a setup
+    # shape. Deduplicating tests to satisfy it makes them harder to read.
+    "duplicate-code",
+]

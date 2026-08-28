@@ -107,7 +107,7 @@ class LMStudioPersona:
         state, not ticket state.
         """
         bound = LMStudioPersona(self._client, self._model, list(leak_terms), self._fallback)
-        bound._degradation = self._degradation
+        bound._degradation = self._degradation  # pylint: disable=protected-access
         return bound
 
     def initial_report(self, card: PersonaCard, symptoms: UserSymptoms) -> str:
@@ -150,7 +150,7 @@ class LMStudioPersona:
 
         try:
             first = self._complete(messages)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             self.degraded = True
             return fallback()
 
@@ -166,7 +166,7 @@ class LMStudioPersona:
         )
         try:
             second = self._complete(messages)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             self.degraded = True
             return fallback()
         return scrub(second, self._leak_terms) or DEFLECTION

@@ -24,9 +24,24 @@ uv run pytest                              # run the full suite
 uv run pytest tests/test_catalog.py        # just the fault conformance harness
 uv run pytest -k account_locked            # run tests matching a name/id
 uv run pytest "tests/test_catalog.py::test_fault_conforms[ad.account_locked@m.alvarez]"  # one case
+
+uv run pylint src                          # lint the package (CI runs this)
+uv run pylint tests \
+  --disable=redefined-outer-name,unused-variable,protected-access,use-implicit-booleaness-not-comparison
 ```
 
 No model or network access is needed to run the suite.
+
+Lint runs as two commands so `src/` keeps the stricter rule set; the four
+disabled checks are pytest idioms that only ever fire in tests (a fixture
+argument shadowing its fixture, unused halves of an unpacked setup tuple,
+asserting on internals, and `== []` where the empty list is the point). Every
+other disabled check, with its reason, is in `[tool.pylint]` in
+`pyproject.toml`; a handful of narrow `# pylint: disable` comments sit inline
+where pylint cannot infer the code (the `getattr` dispatch in
+`env/simulated.py`, pydantic's `default_factory` in `tools/base.py`). Prefer
+fixing a finding or suppressing it at its own line over adding to the global
+list.
 
 ## Core design principle
 

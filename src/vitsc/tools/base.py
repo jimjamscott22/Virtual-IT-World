@@ -34,7 +34,9 @@ class ToolLog(BaseModel):
     calls: list[ToolCall] = Field(default_factory=list)
 
     def record(self, call: ToolCall) -> ToolCall:
-        self.calls.append(call)
+        # pylint does not model pydantic's default_factory: it infers
+        # `calls` as a FieldInfo rather than the list built at runtime.
+        self.calls.append(call)  # pylint: disable=no-member
         return call
 
     def first_mutating_index(self) -> int | None:

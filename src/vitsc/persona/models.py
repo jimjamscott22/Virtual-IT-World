@@ -43,7 +43,6 @@ class Persona(Protocol):
         parameter of `initial_report`/`reply`: keeping the speaking signatures
         free of fault-derived data is the structural half of leak prevention.
         """
-        ...
 
     def initial_report(self, card: PersonaCard, symptoms: UserSymptoms) -> str: ...
 

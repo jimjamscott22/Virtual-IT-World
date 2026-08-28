@@ -25,7 +25,8 @@ class StubClient:
     def create(self, model, messages, **kwargs):
         self.prompts.append(messages[0]["content"])
         text = self.replies.pop(0)
-        return type("R", (), {"choices": [type("C", (), {"message": type("M", (), {"content": text})()})()]})()
+        message = type("M", (), {"content": text})()
+        return type("R", (), {"choices": [type("C", (), {"message": message})()]})()
 
 
 def test_template_persona_for_fault_is_itself():
@@ -40,7 +41,8 @@ def test_bound_persona_scrubs_the_terms_it_was_bound_to():
 
     world = load_world()
     card = card_for(world.org.users["m.alvarez"], Random(0))
-    symptoms = get_fault("ad.account_locked").symptoms(world, get_fault("ad.account_locked").placements(world)[0])
+    fault = get_fault("ad.account_locked")
+    symptoms = fault.symptoms(world, fault.placements(world)[0])
 
     reply = bound.reply(card, symptoms, [], "What happens when you sign in?")
     assert "locked" not in reply.lower()

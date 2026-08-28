@@ -23,17 +23,17 @@ def make_ticket(**overrides) -> Ticket:
     fault = get_fault("ad.account_locked")
     placement = fault.placements(world)[0]
     fault.apply(world, placement, Random(0))
-    base = dict(
-        id=1,
-        fault_id=fault.id,
-        placement=placement,
-        persona=card_for(world.org.users[placement.key]),
-        symptoms=fault.symptoms(world, placement),
-        report_text="I can't sign in.",
-        system_priority=Priority.P1,
-        opened_at=NOW,
-        sla_minutes=SLA_MINUTES[Priority.P1],
-    )
+    base = {
+        "id": 1,
+        "fault_id": fault.id,
+        "placement": placement,
+        "persona": card_for(world.org.users[placement.key]),
+        "symptoms": fault.symptoms(world, placement),
+        "report_text": "I can't sign in.",
+        "system_priority": Priority.P1,
+        "opened_at": NOW,
+        "sla_minutes": SLA_MINUTES[Priority.P1],
+    }
     return Ticket(**{**base, **overrides})
 
 

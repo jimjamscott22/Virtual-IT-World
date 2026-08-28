@@ -137,7 +137,10 @@ class OffboardedReactivation:
             opening="Hector is back on nights from this week and his login doesn't work at all.",
             onset="He left in June and started again yesterday.",
             scope="Just his account. Everyone else on the night shift is fine.",
-            error_text="Your account has been turned off. Please contact your system administrator.",
+            error_text=(
+                "Your account has been turned off. "
+                "Please contact your system administrator."
+            ),
         )
 
     def diagnostic_path(self, at: Placement) -> list[Query]:
