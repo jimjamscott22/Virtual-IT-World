@@ -6,18 +6,39 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      # Report every version's result, rather than cancelling the matrix on
+      # the first failure.
+      fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+        # The project declares requires-python = ">=3.12" and uses 3.12
+        # syntax, so the starter template's 3.8-3.10 matrix could never
+        # install it. 3.13 is here so a future version bump surfaces as a
+        # lint failure rather than at runtime.
+        python-version: ["3.12", "3.13"]
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
       with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pylint
+        enable-cache: true
+
+    - name: Install the project
+      # The project itself, not just pylint: without it pylint cannot resolve
+      # `vitsc.*` imports and reports the whole codebase as broken. uv fetches
+      # the interpreter itself, so no separate setup-python step is needed.
+      # `uv sync` includes the dev group, which is where pylint lives.
+      run: uv sync --python ${{ matrix.python-version }}
+
     - name: Analysing the code with pylint
+      # Two runs, so the package keeps the stricter rule set. The disables
+      # below are pytest idioms that only ever fire in tests: a fixture
+      # argument shadowing the fixture that defines it, unused halves of an
+      # unpacked setup tuple, asserting on internals, and `== []` where being
+      # explicit about an empty list is the point of the assertion. The
+      # configuration for everything else, and the reasoning behind each
+      # disabled check, lives in [tool.pylint] in pyproject.toml.
       run: |
-        pylint $(git ls-files '*.py')
+        uv run pylint src
+        uv run pylint tests \
+          --disable=redefined-outer-name,unused-variable,protected-access,use-implicit-booleaness-not-comparison

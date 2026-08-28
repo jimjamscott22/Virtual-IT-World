@@ -153,7 +153,7 @@ Flagged here rather than discovered mid-task.
 - Consumes: `LMStudioPersona`, `TemplatePersona`, `scrub` (Phase 1 Tasks 10–11); `get_fault` (Phase 1 Task 3).
 - Produces: `Persona.for_fault(leak_terms: list[str]) -> Persona`; `SessionQueue.persona_for(ticket) -> Persona`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_persona_binding.py`:
 
@@ -241,12 +241,12 @@ def test_queue_binds_the_open_ticket_s_fault():
     assert bound is not None
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_persona_binding.py -v`
 Expected: FAIL — `TemplatePersona` has no attribute `for_fault`.
 
-- [ ] **Step 3: Add `for_fault` to the protocol and both implementations**
+- [x] **Step 3: Add `for_fault` to the protocol and both implementations**
 
 In `persona/models.py`, add to the `Persona` protocol:
 
@@ -264,7 +264,7 @@ In `persona/models.py`, add to the `Persona` protocol:
 
 `TemplatePersona.for_fault` returns `self` — it derives text from symptom fields and has nothing to scrub. `LMStudioPersona.for_fault` returns a new instance sharing the client, model and fallback, with the new terms. Do not mutate in place: two open tickets can hold two bindings at once.
 
-- [ ] **Step 4: Resolve the binding in the session layer**
+- [x] **Step 4: Resolve the binding in the session layer**
 
 Add to `SessionQueue`:
 
@@ -280,12 +280,12 @@ Add to `SessionQueue`:
 
 Use it in `open_ticket` for `initial_report`, and in `web/routes/chat.py` for `reply` — replacing `session.queue.persona.reply(...)` with `session.queue.persona_for(ticket).reply(...)`.
 
-- [ ] **Step 5: Run the suite**
+- [x] **Step 5: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: all green, including the existing persona tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat(persona): bind leak terms per ticket via for_fault"
@@ -304,7 +304,7 @@ git add -A && git commit -m "feat(persona): bind leak terms per ticket via for_f
 - Consumes: `for_fault` (Task 1); `make_client`, `DEFAULT_BASE_URL` (Phase 1 Task 11).
 - Produces: `PersonaSettings.from_env()`, `build_persona(settings)`; a degraded banner in the UI.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_persona_config.py`:
 
@@ -344,31 +344,31 @@ def test_app_session_still_accepts_an_explicit_persona(tmp_path):
     assert isinstance(session.queue.persona, TemplatePersona)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_persona_config.py -v`
 Expected: FAIL — no module `vitsc.persona.config`.
 
-- [ ] **Step 3: Implement the settings and the builder**
+- [x] **Step 3: Implement the settings and the builder**
 
 `persona/config.py`: a `PersonaSettings` model with `backend: Literal["template", "lmstudio"] = "template"`, `base_url: str = DEFAULT_BASE_URL`, `model: str = "local-model"`, read from `VITSC_PERSONA`, `VITSC_BASE_URL`, `VITSC_MODEL`. `build_persona` returns `TemplatePersona()` for the default and an `LMStudioPersona(make_client(base_url), model, leak_terms=[])` otherwise — empty terms at construction, because Task 1 made binding per-ticket the way terms arrive.
 
 Import `openai` lazily inside `make_client` as it already is, so the default path never touches it.
 
-- [ ] **Step 4: Wire it into `AppSession` and surface `degraded`**
+- [x] **Step 4: Wire it into `AppSession` and surface `degraded`**
 
 `AppSession.build` calls `build_persona(PersonaSettings.from_env())` when no `persona` argument is passed. Add a `degraded` property that reads through to `getattr(self.queue.persona, "degraded", False)`, and render a banner in `layout.html` when it is true — the player must know they are reading template text rather than model text.
 
-- [ ] **Step 5: Run the suite**
+- [x] **Step 5: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: all green with nothing on localhost:1234.
 
-- [ ] **Step 6: Write the manual verification doc**
+- [x] **Step 6: Write the manual verification doc**
 
 `docs/verifying-lmstudio.md`: load an 8–14B instruct model, confirm `curl http://localhost:1234/v1/models`, run `VITSC_PERSONA=lmstudio VITSC_MODEL=<id> uv run python -m vitsc`, then work one ticket per domain and check three things — the report reads like a person, no reply names a cause, and stopping LM Studio mid-session shows the banner without breaking the queue. State plainly that this cannot be verified in CI or in a sandboxed container.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A && git commit -m "feat(persona): construct the model-backed persona from config"
@@ -386,7 +386,7 @@ git add -A && git commit -m "feat(persona): construct the model-backed persona f
 - Consumes: `World`, `Placement` (Phase 1 Tasks 1, 3).
 - Produces: `Distractor` protocol, `register_distractor`, `all_distractors`, `get_distractor`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_distractors.py` — the harness that makes "honest" mechanical. It is parametrized over distractor × placement, mirroring `tests/test_catalog.py`:
 
@@ -479,12 +479,12 @@ def test_distractor_does_not_break_a_canonical_fix(distractor, at):
             env.restore(snapshot)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_distractors.py -v`
 Expected: FAIL — no module `vitsc.distractors.base`.
 
-- [ ] **Step 3: Write the protocol and registry**
+- [x] **Step 3: Write the protocol and registry**
 
 `distractors/base.py`:
 
@@ -522,12 +522,12 @@ class Distractor(Protocol):
 
 `distractors/registry.py` mirrors `faults/registry.py`: a module dict, `register_distractor`, `all_distractors()` (importing the catalog to trigger registration), `get_distractor`.
 
-- [ ] **Step 4: Run the harness against an empty catalog**
+- [x] **Step 4: Run the harness against an empty catalog**
 
 Run: `uv run pytest tests/test_distractors.py -v`
 Expected: 0 collected cases, no failures. The harness is ready; Task 4 fills it.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(distractors): add the Distractor protocol and conformance harness"

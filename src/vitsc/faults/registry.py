@@ -11,6 +11,7 @@ def register(fault: Fault) -> Fault:
 
 
 def all_faults() -> list[Fault]:
+    # pylint: disable=import-outside-toplevel,unused-import
     import vitsc.faults.catalog  # noqa: F401  — triggers registration
 
     return sorted(_REGISTRY.values(), key=lambda f: f.id)

@@ -26,6 +26,11 @@
               : `SLA in ${t.remaining} min`;
           }
         }
+        const banner = document.getElementById("degraded-banner");
+        if (banner) {
+          banner.dataset.degraded = payload.degraded ? "true" : "false";
+          banner.hidden = !payload.degraded;
+        }
         if (payload.arrivals.length > 0) {
           htmx.trigger("#queue", "refresh");
         }

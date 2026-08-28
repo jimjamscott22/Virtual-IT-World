@@ -25,13 +25,13 @@ class SimulatedEnvironment:
         handler = getattr(self, f"_read_{query.kind.replace('.', '_')}", None)
         if handler is None:
             return Observation(ok=False, rendered=NOT_FOUND)
-        return handler(query)
+        return handler(query)  # pylint: disable=not-callable
 
     def execute(self, action: Action) -> ActionResult:
         handler = getattr(self, f"_do_{action.kind.replace('.', '_')}", None)
         if handler is None:
             return ActionResult(ok=False, rendered=NOT_FOUND)
-        return handler(action)
+        return handler(action)  # pylint: disable=not-callable
 
     def snapshot(self) -> str:
         snapshot_id = uuid.uuid4().hex
@@ -211,6 +211,13 @@ class SimulatedEnvironment:
             "DhcpEnabled": machine.dhcp_enabled,
             "Autoconfigured": not leased,
         }
+        # Hoisted only to keep the line readable; the rendered dotted-leader
+        # spacing is real `ipconfig` output and must stay byte-for-byte.
+        ipv4_label = (
+            "Autoconfiguration IPv4 Address"
+            if not leased
+            else "IPv4 Address. . . . . . . . . "
+        )
         lines = [
             "Windows IP Configuration",
             "",
@@ -218,8 +225,7 @@ class SimulatedEnvironment:
             "",
             f"   Connection-specific DNS Suffix  . : {self.world.org.domain}",
             f"   DHCP Enabled. . . . . . . . . . . : {'Yes' if machine.dhcp_enabled else 'No'}",
-            f"   {'Autoconfiguration IPv4 Address' if not leased else 'IPv4 Address. . . . . . . . . '}"
-            f". : {ip}{' (Preferred)' if leased else ''}",
+            f"   {ipv4_label}. : {ip}{' (Preferred)' if leased else ''}",
             f"   Subnet Mask . . . . . . . . . . . : {data['SubnetMask']}",
             f"   Default Gateway . . . . . . . . . : {data['DefaultGateway']}",
         ]

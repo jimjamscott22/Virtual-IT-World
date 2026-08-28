@@ -21,6 +21,17 @@ from vitsc.persona.prompts import build_system_prompt
 from vitsc.persona.templates import DEFLECTION, TemplatePersona
 
 DEFAULT_BASE_URL = "http://localhost:1234/v1"
+
+# A helpdesk user who takes ten minutes to answer is not a user, and the
+# openai SDK's own default timeout is 600s — long enough for a wedged LM
+# Studio to hang the page rather than degrade. The persona layer's fallback
+# *is* the retry strategy (every failure path returns template output and
+# flips `degraded`), so the transport does not retry underneath it: a fast
+# fallback keeps the drill responsive, and the next question tries the model
+# again anyway.
+REQUEST_TIMEOUT_SECONDS = 30.0
+TRANSPORT_RETRIES = 0
+
 RETRY_NUDGE = (
     "That reply used a technical term you would not know. Say the same thing "
     "again in plain words, without naming any cause."
@@ -59,11 +70,37 @@ def scrub(text: str, leak_terms: list[str]) -> str | None:
     return None
 
 
-def make_client(base_url: str = DEFAULT_BASE_URL):
+def make_client(
+    base_url: str = DEFAULT_BASE_URL,
+    timeout: float = REQUEST_TIMEOUT_SECONDS,
+    max_retries: int = TRANSPORT_RETRIES,
+):
     """Build a real LM Studio client. Imported lazily so the suite never needs openai."""
+    # pylint: disable=import-outside-toplevel
     from openai import OpenAI
 
-    return OpenAI(base_url=base_url, api_key="lm-studio")
+    return OpenAI(
+        base_url=base_url,
+        api_key="lm-studio",
+        timeout=timeout,
+        max_retries=max_retries,
+    )
+
+
+class _Degradation:
+    """The one degraded flag an origin persona shares with all its bindings.
+
+    `for_fault` returns a *copy*, and every model call in a session goes
+    through one of those copies rather than through the persona the queue
+    holds. A plain instance attribute would therefore record the fallback on
+    an object the web layer never looks at, and the "you are reading template
+    text" banner — which reads `queue.persona.degraded` — would stay dark
+    through an outage. Sharing one mutable holder by reference keeps the
+    origin honest without letting a binding reach back into its siblings.
+    """
+
+    def __init__(self) -> None:
+        self.on = False
 
 
 class LMStudioPersona:
@@ -72,7 +109,27 @@ class LMStudioPersona:
         self._model = model
         self._leak_terms = leak_terms
         self._fallback = fallback or TemplatePersona()
-        self.degraded = False
+        self._degradation = _Degradation()
+
+    @property
+    def degraded(self) -> bool:
+        return self._degradation.on
+
+    @degraded.setter
+    def degraded(self, value: bool) -> None:
+        self._degradation.on = value
+
+    def for_fault(self, leak_terms: list[str]) -> "LMStudioPersona":
+        """A copy scrubbing this ticket's vocabulary, sharing everything else.
+
+        A copy rather than a mutation because two tickets can be open at once
+        and each binding has to keep its own terms. The client, model,
+        fallback and degraded flag are shared by reference: they are session
+        state, not ticket state.
+        """
+        bound = LMStudioPersona(self._client, self._model, list(leak_terms), self._fallback)
+        bound._degradation = self._degradation  # pylint: disable=protected-access
+        return bound
 
     def initial_report(self, card: PersonaCard, symptoms: UserSymptoms) -> str:
         return self._ask(
@@ -114,7 +171,7 @@ class LMStudioPersona:
 
         try:
             first = self._complete(messages)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             self.degraded = True
             return fallback()
 
@@ -130,7 +187,7 @@ class LMStudioPersona:
         )
         try:
             second = self._complete(messages)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             self.degraded = True
             return fallback()
         return scrub(second, self._leak_terms) or DEFLECTION

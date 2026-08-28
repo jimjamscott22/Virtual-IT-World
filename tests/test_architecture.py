@@ -39,3 +39,19 @@ def test_no_tool_imports_the_world_model_directly():
                 f"{source.name} imports {module}; tools should only touch "
                 "Query/Action/Observation"
             )
+
+
+def test_no_tool_imports_a_distractor():
+    """The same rule as faults, for the same reason.
+
+    A tool that could see the distractor catalog could branch on "is this
+    anomaly a decoy?" — which would make the seeded noise dishonest and undo
+    the point of seeding it. Tools see world state and cannot tell the
+    difference, exactly as the technician cannot.
+    """
+    for source in TOOLS.glob("*.py"):
+        for module in imported_modules(source):
+            assert not module.startswith("vitsc.distractors"), (
+                f"{source.name} imports {module}; a tool must not be able to "
+                "tell a decoy from a cause"
+            )

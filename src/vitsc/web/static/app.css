@@ -6,6 +6,9 @@
   --text: #e6e8eb;
   --muted: #9aa2af;
   --accent: #4f8cff;
+  --warn-bg: #2e2513;
+  --warn-border: #6b5520;
+  --warn-text: #f0d9a0;
 }
 
 * { box-sizing: border-box; }
@@ -63,3 +66,16 @@ body {
 }
 
 .empty-state { color: var(--muted); }
+
+/* Shown when the local model is unavailable and the simulated user has
+   fallen back to scripted replies. `hidden` is toggled from the SSE handler
+   in base.html, so it appears mid-session, not just on a page load. */
+.banner-degraded {
+  padding: 0.6rem 1.5rem;
+  background: var(--warn-bg);
+  border-bottom: 1px solid var(--warn-border);
+  color: var(--warn-text);
+  font-size: 0.85rem;
+}
+
+.banner-degraded[hidden] { display: none; }

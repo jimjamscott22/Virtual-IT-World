@@ -11,7 +11,7 @@ from random import Random
 
 from vitsc.env.simulated import SimulatedEnvironment
 from vitsc.faults.base import Fault, Placement
-from vitsc.faults.registry import all_faults
+from vitsc.faults.registry import all_faults, get_fault
 from vitsc.persona.models import Persona
 from vitsc.persona.personas import card_for
 from vitsc.session.ticket import SLA_MINUTES, Ticket, TicketState, priority_for
@@ -89,6 +89,14 @@ class SessionQueue:
     def get(self, ticket_id: int) -> Ticket:
         return next(t for t in self.tickets if t.id == ticket_id)
 
+    def persona_for(self, ticket: Ticket) -> Persona:
+        """The persona bound to this ticket's leak terms.
+
+        Lives here, not in the chat route, so the web layer never imports the
+        fault registry to speak to a user.
+        """
+        return self.persona.for_fault(get_fault(ticket.fault_id).leak_terms)
+
     def _candidates(self) -> list[tuple[Fault, Placement]]:
         taken = {(t.fault_id, t.placement.key) for t in self.active()}
         return [
@@ -129,7 +137,11 @@ class SessionQueue:
             placement=placement,
             persona=card,
             symptoms=symptoms,
-            report_text=self.persona.initial_report(card, symptoms),
+            # Bound the same way `persona_for` binds an open ticket; the
+            # fault is already in hand here, so no registry round-trip.
+            report_text=self.persona.for_fault(fault.leak_terms).initial_report(
+                card, symptoms
+            ),
             system_priority=priority,
             opened_at=self.env.world.clock,
             sla_minutes=SLA_MINUTES[priority],
