@@ -827,7 +827,7 @@ git add -A && git commit -m "feat(session): add cascade reporters and plural tic
 - Consumes: `cascade_id` (Task 5).
 - Produces: `Grade.duplicate_mutations`; `AfterAction.cascade_note`; `grade_ticket(..., siblings=...)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Extend `tests/test_grading.py`:
 
@@ -870,12 +870,12 @@ def test_after_action_has_no_cascade_note_for_a_single_ticket():
     assert report.cascade_note == ""
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_grading.py -v`
 Expected: FAIL — `grade_ticket` takes no `siblings`, no `duplicate_mutations`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `grading.py`: add `duplicate_mutations(ticket) -> int` counting repeated `(tool, command, args)` mutating calls beyond the first, and a `duplicate_mutations` field on `Grade`. Add an optional `siblings: list[Ticket] | None = None` parameter to `grade_ticket`; it does **not** change the pass/fail logic — `is_present()` against the live world already covers siblings — it only feeds the report. Say so in a comment, because the temptation to special-case cascades in the gate is exactly what the core principle forbids.
 
@@ -883,12 +883,12 @@ Expected: FAIL — `grade_ticket` takes no `siblings`, no `duplicate_mutations`.
 
 `store.py`: add `cascade_id` to the schema and `ClosedRecord` so history can show which closures were one outage. Use `ALTER TABLE ... ADD COLUMN` guarded by a `PRAGMA table_info` check, so an existing database survives.
 
-- [ ] **Step 4: Run the suite**
+- [x] **Step 4: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: green except Task 7's fault.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(session): grade and report cascades as one root cause"

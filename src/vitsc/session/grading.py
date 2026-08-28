@@ -26,6 +26,7 @@ class Grade(BaseModel):
     tool_calls_minimum: int
     questions_before_first_mutation: int
     triage_correct: bool
+    duplicate_mutations: int = 0
 
 
 def questions_before_first_mutation(ticket: Ticket) -> int:
@@ -43,9 +44,42 @@ def questions_before_first_mutation(ticket: Ticket) -> int:
     return sum(1 for turn in tech_turns if turn.at <= cutoff)
 
 
+def duplicate_mutations(ticket: Ticket, siblings: list[Ticket] | None = None) -> int:
+    """How many times an identical mutating call was repeated beyond its first use.
+
+    Fixing one root cause three times is one fix, not three. `siblings`, when
+    given, folds in every other ticket the same cascade produced, so a
+    technician who re-runs the same repair once per sibling ticket is counted
+    the same as one who repeats it within a single ticket.
+    """
+    tickets = [ticket]
+    seen_ids = {id(ticket)}
+    for sibling in siblings or []:
+        if id(sibling) not in seen_ids:
+            seen_ids.add(id(sibling))
+            tickets.append(sibling)
+
+    counts: dict[tuple[str, str, tuple[tuple[str, str], ...]], int] = {}
+    for one in tickets:
+        for call in one.tool_calls:
+            if not call.mutating:
+                continue
+            key = (call.tool, call.command, tuple(sorted(call.args.items())))
+            counts[key] = counts.get(key, 0) + 1
+    return sum(count - 1 for count in counts.values() if count > 1)
+
+
 def grade_ticket(
-    ticket: Ticket, fault: Fault, env: SimulatedEnvironment, baseline: Baseline
+    ticket: Ticket,
+    fault: Fault,
+    env: SimulatedEnvironment,
+    baseline: Baseline,
+    siblings: list[Ticket] | None = None,
 ) -> Grade:
+    # `siblings` only feeds the report (`duplicate_mutations`), never pass/fail —
+    # `is_present()` against the live world already covers every sibling, so
+    # special-casing a cascade in the gate itself would be exactly the kind of
+    # fault-aware branching the core design principle forbids.
     cleared = not fault.is_present(env.world, ticket.placement)
     collateral = check_invariants(env.world, baseline)
 
@@ -76,4 +110,5 @@ def grade_ticket(
         # penalised, only a mis-triaged one.
         triage_correct=ticket.user_priority is None
         or ticket.user_priority == ticket.system_priority,
+        duplicate_mutations=duplicate_mutations(ticket, siblings),
     )

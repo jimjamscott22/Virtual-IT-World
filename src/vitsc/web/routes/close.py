@@ -22,8 +22,13 @@ def close_ticket(request: Request, ticket_id: int, disposition: str = Form(...))
     ticket.tool_calls = list(session.log_for(ticket_id).calls)
     ticket.close(Disposition(disposition), at=session.env.world.clock)
 
-    grade = grade_ticket(ticket, fault, session.env, session.queue.baseline)
-    report = build_after_action(ticket, fault, grade, session.env.world)
+    siblings = (
+        [t for t in session.queue.tickets if t.cascade_id == ticket.cascade_id]
+        if ticket.cascade_id is not None
+        else None
+    )
+    grade = grade_ticket(ticket, fault, session.env, session.queue.baseline, siblings=siblings)
+    report = build_after_action(ticket, fault, grade, session.env.world, siblings=siblings)
     session.store.save_closed(ticket, grade, report)
 
     return templates.TemplateResponse(

@@ -39,4 +39,8 @@
   {% if report.touched_before_asking %}
   <p class="warning">You made changes before asking the user any questions.</p>
   {% endif %}
+
+  {% if report.cascade_note %}
+  <p class="cascade-note">{{ report.cascade_note }}</p>
+  {% endif %}
 </article>

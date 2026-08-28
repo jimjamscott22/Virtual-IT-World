@@ -23,10 +23,15 @@ class AfterAction(BaseModel):
     collateral: list[str] = Field(default_factory=list)
     within_sla: bool
     verdict: str
+    cascade_note: str = ""
 
 
 def build_after_action(
-    ticket: Ticket, fault: Fault, grade: Grade, world: World
+    ticket: Ticket,
+    fault: Fault,
+    grade: Grade,
+    world: World,
+    siblings: list[Ticket] | None = None,
 ) -> AfterAction:
     path = [
         f"{q.kind} {q.target}".strip()
@@ -60,6 +65,17 @@ def build_after_action(
     else:
         verdict = "The underlying fault was still present when you closed the ticket."
 
+    if grade.fault_cleared and grade.duplicate_mutations:
+        times = grade.duplicate_mutations + 1
+        verdict = f"{verdict} You fixed this {times} times. One root cause needs one fix."
+
+    cascade_note = ""
+    if siblings and len(siblings) > 1:
+        cascade_note = (
+            f"One {fault.canonical_title.lower()} was behind {len(siblings)} tickets "
+            "— the fix was a single fix."
+        )
+
     return AfterAction(
         root_cause=fault.canonical_title,
         shortest_path=path,
@@ -73,4 +89,5 @@ def build_after_action(
         collateral=grade.collateral,
         within_sla=grade.within_sla,
         verdict=verdict,
+        cascade_note=cascade_note,
     )

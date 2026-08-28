@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS closed_tickets (
     root_cause       TEXT    NOT NULL,
     verdict          TEXT    NOT NULL,
     closed_at        TEXT    NOT NULL,
+    cascade_id       TEXT,
     rowid_key        INTEGER PRIMARY KEY AUTOINCREMENT
 );
 """
@@ -51,6 +52,7 @@ class ClosedRecord(BaseModel):
     root_cause: str
     verdict: str
     closed_at: datetime
+    cascade_id: str | None = None
 
 
 class DomainStat(BaseModel):
@@ -75,6 +77,12 @@ class Store:
     def init(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA)
+            # A database created before cascades existed lacks this column —
+            # `CREATE TABLE IF NOT EXISTS` above never adds it retroactively,
+            # so an existing on-disk database needs its own migration step.
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(closed_tickets)")}
+            if "cascade_id" not in columns:
+                conn.execute("ALTER TABLE closed_tickets ADD COLUMN cascade_id TEXT")
 
     def save_closed(self, ticket: Ticket, grade: Grade, report: AfterAction) -> None:
         domain = get_fault(ticket.fault_id).domain
@@ -83,14 +91,14 @@ class Store:
                 """INSERT INTO closed_tickets (
                     ticket_id, fault_id, domain, placement_key, disposition, correct,
                     within_sla, elapsed_minutes, tool_calls_made, tool_calls_min,
-                    collateral_count, root_cause, verdict, closed_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    collateral_count, root_cause, verdict, closed_at, cascade_id
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     ticket.id, ticket.fault_id, domain, ticket.placement.key,
                     ticket.disposition.value, int(grade.correct), int(grade.within_sla),
                     grade.elapsed_minutes, grade.tool_calls_made, grade.tool_calls_minimum,
                     len(grade.collateral), report.root_cause, report.verdict,
-                    ticket.closed_at.isoformat(),
+                    ticket.closed_at.isoformat(), ticket.cascade_id,
                 ),
             )
 
@@ -107,6 +115,7 @@ class Store:
                 tool_calls_made=r["tool_calls_made"], tool_calls_min=r["tool_calls_min"],
                 collateral_count=r["collateral_count"], root_cause=r["root_cause"],
                 verdict=r["verdict"], closed_at=datetime.fromisoformat(r["closed_at"]),
+                cascade_id=r["cascade_id"],
             )
             for r in rows
         ]
