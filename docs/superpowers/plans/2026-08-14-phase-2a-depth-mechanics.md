@@ -386,7 +386,7 @@ git add -A && git commit -m "feat(persona): construct the model-backed persona f
 - Consumes: `World`, `Placement` (Phase 1 Tasks 1, 3).
 - Produces: `Distractor` protocol, `register_distractor`, `all_distractors`, `get_distractor`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_distractors.py` — the harness that makes "honest" mechanical. It is parametrized over distractor × placement, mirroring `tests/test_catalog.py`:
 
@@ -479,12 +479,12 @@ def test_distractor_does_not_break_a_canonical_fix(distractor, at):
             env.restore(snapshot)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_distractors.py -v`
 Expected: FAIL — no module `vitsc.distractors.base`.
 
-- [ ] **Step 3: Write the protocol and registry**
+- [x] **Step 3: Write the protocol and registry**
 
 `distractors/base.py`:
 
@@ -522,12 +522,12 @@ class Distractor(Protocol):
 
 `distractors/registry.py` mirrors `faults/registry.py`: a module dict, `register_distractor`, `all_distractors()` (importing the catalog to trigger registration), `get_distractor`.
 
-- [ ] **Step 4: Run the harness against an empty catalog**
+- [x] **Step 4: Run the harness against an empty catalog**
 
 Run: `uv run pytest tests/test_distractors.py -v`
 Expected: 0 collected cases, no failures. The harness is ready; Task 4 fills it.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(distractors): add the Distractor protocol and conformance harness"
