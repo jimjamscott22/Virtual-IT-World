@@ -14,7 +14,7 @@ def send_message(request: Request, ticket_id: int, message: str = Form(...)):
     ticket = _ticket_or_404(request, ticket_id)
 
     ticket.chat.append(ChatTurn(speaker="tech", text=message))
-    reply = session.queue.persona.reply(
+    reply = session.queue.persona_for(ticket).reply(
         ticket.persona, ticket.symptoms, ticket.chat[:-1], message
     )
     ticket.chat.append(ChatTurn(speaker="user", text=reply))

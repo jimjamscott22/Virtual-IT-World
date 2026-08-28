@@ -32,6 +32,11 @@ def _quoted_error(error_text: str) -> str:
 class TemplatePersona:
     """Symptom-derived responses, matched on keywords in the question."""
 
+    def for_fault(self, leak_terms: list[str]) -> "TemplatePersona":
+        """Itself. Every sentence is a symptom field or fixed connective text,
+        so there is no generated vocabulary for leak terms to filter."""
+        return self
+
     def initial_report(self, card: PersonaCard, symptoms: UserSymptoms) -> str:
         lines = [symptoms.opening]
         if symptoms.error_text:

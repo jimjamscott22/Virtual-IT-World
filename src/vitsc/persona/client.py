@@ -66,13 +66,49 @@ def make_client(base_url: str = DEFAULT_BASE_URL):
     return OpenAI(base_url=base_url, api_key="lm-studio")
 
 
+class _Degradation:
+    """The one degraded flag an origin persona shares with all its bindings.
+
+    `for_fault` returns a *copy*, and every model call in a session goes
+    through one of those copies rather than through the persona the queue
+    holds. A plain instance attribute would therefore record the fallback on
+    an object the web layer never looks at, and the "you are reading template
+    text" banner — which reads `queue.persona.degraded` — would stay dark
+    through an outage. Sharing one mutable holder by reference keeps the
+    origin honest without letting a binding reach back into its siblings.
+    """
+
+    def __init__(self) -> None:
+        self.on = False
+
+
 class LMStudioPersona:
     def __init__(self, client, model: str, leak_terms: list[str], fallback=None) -> None:
         self._client = client
         self._model = model
         self._leak_terms = leak_terms
         self._fallback = fallback or TemplatePersona()
-        self.degraded = False
+        self._degradation = _Degradation()
+
+    @property
+    def degraded(self) -> bool:
+        return self._degradation.on
+
+    @degraded.setter
+    def degraded(self, value: bool) -> None:
+        self._degradation.on = value
+
+    def for_fault(self, leak_terms: list[str]) -> "LMStudioPersona":
+        """A copy scrubbing this ticket's vocabulary, sharing everything else.
+
+        A copy rather than a mutation because two tickets can be open at once
+        and each binding has to keep its own terms. The client, model,
+        fallback and degraded flag are shared by reference: they are session
+        state, not ticket state.
+        """
+        bound = LMStudioPersona(self._client, self._model, list(leak_terms), self._fallback)
+        bound._degradation = self._degradation
+        return bound
 
     def initial_report(self, card: PersonaCard, symptoms: UserSymptoms) -> str:
         return self._ask(

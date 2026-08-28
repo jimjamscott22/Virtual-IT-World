@@ -153,7 +153,7 @@ Flagged here rather than discovered mid-task.
 - Consumes: `LMStudioPersona`, `TemplatePersona`, `scrub` (Phase 1 Tasks 10–11); `get_fault` (Phase 1 Task 3).
 - Produces: `Persona.for_fault(leak_terms: list[str]) -> Persona`; `SessionQueue.persona_for(ticket) -> Persona`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_persona_binding.py`:
 
@@ -241,12 +241,12 @@ def test_queue_binds_the_open_ticket_s_fault():
     assert bound is not None
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_persona_binding.py -v`
 Expected: FAIL — `TemplatePersona` has no attribute `for_fault`.
 
-- [ ] **Step 3: Add `for_fault` to the protocol and both implementations**
+- [x] **Step 3: Add `for_fault` to the protocol and both implementations**
 
 In `persona/models.py`, add to the `Persona` protocol:
 
@@ -264,7 +264,7 @@ In `persona/models.py`, add to the `Persona` protocol:
 
 `TemplatePersona.for_fault` returns `self` — it derives text from symptom fields and has nothing to scrub. `LMStudioPersona.for_fault` returns a new instance sharing the client, model and fallback, with the new terms. Do not mutate in place: two open tickets can hold two bindings at once.
 
-- [ ] **Step 4: Resolve the binding in the session layer**
+- [x] **Step 4: Resolve the binding in the session layer**
 
 Add to `SessionQueue`:
 
@@ -280,12 +280,12 @@ Add to `SessionQueue`:
 
 Use it in `open_ticket` for `initial_report`, and in `web/routes/chat.py` for `reply` — replacing `session.queue.persona.reply(...)` with `session.queue.persona_for(ticket).reply(...)`.
 
-- [ ] **Step 5: Run the suite**
+- [x] **Step 5: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: all green, including the existing persona tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat(persona): bind leak terms per ticket via for_fault"

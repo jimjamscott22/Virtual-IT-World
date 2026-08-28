@@ -35,6 +35,16 @@ class Persona(Protocol):
     the cause it doesn't have.
     """
 
+    def for_fault(self, leak_terms: list[str]) -> "Persona":
+        """Return a persona bound to this ticket's forbidden vocabulary.
+
+        Leak terms change per ticket while a session runs many faults, so they
+        cannot be fixed at construction. They are deliberately *not* a
+        parameter of `initial_report`/`reply`: keeping the speaking signatures
+        free of fault-derived data is the structural half of leak prevention.
+        """
+        ...
+
     def initial_report(self, card: PersonaCard, symptoms: UserSymptoms) -> str: ...
 
     def reply(
