@@ -23,7 +23,11 @@ def index(request: Request):
     session = _session(request)
     return templates.TemplateResponse(
         request, "index.html",
-        {"tickets": session.queue.active(), "now": session.env.world.clock},
+        {
+            "tickets": session.queue.active(),
+            "now": session.env.world.clock,
+            "degraded": session.degraded,
+        },
     )
 
 

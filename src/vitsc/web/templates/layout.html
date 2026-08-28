@@ -4,6 +4,15 @@
   <h1>Virtual IT Support Center</h1>
   <p class="org-name">Meridian Freight Co.</p>
 </header>
+{# Always rendered so the SSE handler in base.html can reveal it the moment
+   the model goes away mid-session, rather than only on the next full page
+   load — which, in an HTMX app, may never come. #}
+<div id="degraded-banner" class="banner banner-degraded"
+     data-degraded="{{ 'true' if degraded else 'false' }}"
+     {% if not degraded %}hidden{% endif %}>
+  The simulated user is running on scripted replies — the local model is
+  unavailable. The drill still works; the answers are just less natural.
+</div>
 <main class="layout">
   <section id="queue" class="queue-pane" hx-get="/queue" hx-trigger="every 10s, refresh" hx-swap="innerHTML">
     {% include "_queue.html" %}

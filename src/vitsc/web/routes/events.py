@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -29,6 +29,31 @@ def advance_clock_if_due(session: AppSession, wall_now: float) -> None:
         session.last_tick_at = wall_now
 
 
+def build_payload(session: AppSession, now: datetime, arrivals: list) -> dict:
+    """One tick's worth of state for the browser.
+
+    Split out of the stream loop for the same reason `advance_clock_if_due`
+    was: the loop itself never terminates, so driving it through TestClient
+    hangs. Everything worth asserting lives here instead.
+    """
+    return {
+        "clock": now.isoformat(),
+        "arrivals": [t.id for t in arrivals],
+        # Degradation starts mid-session, long after the page was rendered,
+        # so the banner has to be driven from here rather than from the
+        # initial render alone.
+        "degraded": session.degraded,
+        "active": [
+            {
+                "id": t.id,
+                "remaining": int((t.deadline - now).total_seconds() // 60),
+                "overdue": t.is_overdue(now),
+            }
+            for t in session.queue.active()
+        ],
+    }
+
+
 @router.get("/events")
 async def events(request: Request) -> StreamingResponse:
     session = _session(request)
@@ -38,18 +63,7 @@ async def events(request: Request) -> StreamingResponse:
             advance_clock_if_due(session, time.monotonic())
             now = session.env.world.clock
             arrivals = session.queue.tick(now)
-            payload = {
-                "clock": now.isoformat(),
-                "arrivals": [t.id for t in arrivals],
-                "active": [
-                    {
-                        "id": t.id,
-                        "remaining": int((t.deadline - now).total_seconds() // 60),
-                        "overdue": t.is_overdue(now),
-                    }
-                    for t in session.queue.active()
-                ],
-            }
+            payload = build_payload(session, now, arrivals)
             yield f"data: {json.dumps(payload)}\n\n"
             await asyncio.sleep(TICK_SECONDS)
 

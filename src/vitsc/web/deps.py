@@ -5,8 +5,8 @@ from random import Random
 from pydantic import BaseModel, ConfigDict
 
 from vitsc.env.simulated import SimulatedEnvironment
+from vitsc.persona.config import PersonaSettings, build_persona
 from vitsc.persona.models import Persona
-from vitsc.persona.templates import TemplatePersona
 from vitsc.session.queue import SessionQueue
 from vitsc.session.store import Store
 from vitsc.tools.base import ToolLog
@@ -43,14 +43,28 @@ class AppSession(BaseModel):
         now = now or env.world.clock
         store = Store(db_path)
         store.init()
+        # An explicit persona wins (the whole test suite passes one); otherwise
+        # the environment decides, defaulting to the model-free template.
+        if persona is None:
+            persona = build_persona(PersonaSettings.from_env())
         return cls(
             env=env,
             queue=SessionQueue(
-                env=env, persona=persona or TemplatePersona(), rng=Random(seed), now=now
+                env=env, persona=persona, rng=Random(seed), now=now
             ),
             store=store,
             started_at=now,
         )
+
+    @property
+    def degraded(self) -> bool:
+        """Whether the player is reading template text rather than model text.
+
+        Read through to the persona the queue holds rather than cached, because
+        an outage can start at any point in a session. `TemplatePersona` has no
+        such attribute and is never degraded — it is the fallback.
+        """
+        return getattr(self.queue.persona, "degraded", False)
 
     def log_for(self, ticket_id: int) -> ToolLog:
         return self.logs.setdefault(ticket_id, ToolLog())

@@ -21,6 +21,17 @@ from vitsc.persona.prompts import build_system_prompt
 from vitsc.persona.templates import DEFLECTION, TemplatePersona
 
 DEFAULT_BASE_URL = "http://localhost:1234/v1"
+
+# A helpdesk user who takes ten minutes to answer is not a user, and the
+# openai SDK's own default timeout is 600s — long enough for a wedged LM
+# Studio to hang the page rather than degrade. The persona layer's fallback
+# *is* the retry strategy (every failure path returns template output and
+# flips `degraded`), so the transport does not retry underneath it: a fast
+# fallback keeps the drill responsive, and the next question tries the model
+# again anyway.
+REQUEST_TIMEOUT_SECONDS = 30.0
+TRANSPORT_RETRIES = 0
+
 RETRY_NUDGE = (
     "That reply used a technical term you would not know. Say the same thing "
     "again in plain words, without naming any cause."
@@ -59,11 +70,21 @@ def scrub(text: str, leak_terms: list[str]) -> str | None:
     return None
 
 
-def make_client(base_url: str = DEFAULT_BASE_URL):
+def make_client(
+    base_url: str = DEFAULT_BASE_URL,
+    timeout: float = REQUEST_TIMEOUT_SECONDS,
+    max_retries: int = TRANSPORT_RETRIES,
+):
     """Build a real LM Studio client. Imported lazily so the suite never needs openai."""
+    # pylint: disable=import-outside-toplevel
     from openai import OpenAI
 
-    return OpenAI(base_url=base_url, api_key="lm-studio")
+    return OpenAI(
+        base_url=base_url,
+        api_key="lm-studio",
+        timeout=timeout,
+        max_retries=max_retries,
+    )
 
 
 class _Degradation:

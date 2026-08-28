@@ -304,7 +304,7 @@ git add -A && git commit -m "feat(persona): bind leak terms per ticket via for_f
 - Consumes: `for_fault` (Task 1); `make_client`, `DEFAULT_BASE_URL` (Phase 1 Task 11).
 - Produces: `PersonaSettings.from_env()`, `build_persona(settings)`; a degraded banner in the UI.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_persona_config.py`:
 
@@ -344,31 +344,31 @@ def test_app_session_still_accepts_an_explicit_persona(tmp_path):
     assert isinstance(session.queue.persona, TemplatePersona)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_persona_config.py -v`
 Expected: FAIL — no module `vitsc.persona.config`.
 
-- [ ] **Step 3: Implement the settings and the builder**
+- [x] **Step 3: Implement the settings and the builder**
 
 `persona/config.py`: a `PersonaSettings` model with `backend: Literal["template", "lmstudio"] = "template"`, `base_url: str = DEFAULT_BASE_URL`, `model: str = "local-model"`, read from `VITSC_PERSONA`, `VITSC_BASE_URL`, `VITSC_MODEL`. `build_persona` returns `TemplatePersona()` for the default and an `LMStudioPersona(make_client(base_url), model, leak_terms=[])` otherwise — empty terms at construction, because Task 1 made binding per-ticket the way terms arrive.
 
 Import `openai` lazily inside `make_client` as it already is, so the default path never touches it.
 
-- [ ] **Step 4: Wire it into `AppSession` and surface `degraded`**
+- [x] **Step 4: Wire it into `AppSession` and surface `degraded`**
 
 `AppSession.build` calls `build_persona(PersonaSettings.from_env())` when no `persona` argument is passed. Add a `degraded` property that reads through to `getattr(self.queue.persona, "degraded", False)`, and render a banner in `layout.html` when it is true — the player must know they are reading template text rather than model text.
 
-- [ ] **Step 5: Run the suite**
+- [x] **Step 5: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: all green with nothing on localhost:1234.
 
-- [ ] **Step 6: Write the manual verification doc**
+- [x] **Step 6: Write the manual verification doc**
 
 `docs/verifying-lmstudio.md`: load an 8–14B instruct model, confirm `curl http://localhost:1234/v1/models`, run `VITSC_PERSONA=lmstudio VITSC_MODEL=<id> uv run python -m vitsc`, then work one ticket per domain and check three things — the report reads like a person, no reply names a cause, and stopping LM Studio mid-session shows the banner without breaking the queue. State plainly that this cannot be verified in CI or in a sandboxed container.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A && git commit -m "feat(persona): construct the model-backed persona from config"
