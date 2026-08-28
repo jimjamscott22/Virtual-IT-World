@@ -19,6 +19,7 @@ HTTP_FIX = {
     "net.no_dhcp_lease": ("net", "renew"),
     "print.spooler_stopped": ("print", "restart-spooler"),
     "print.wrong_driver": ("print", "reinstall-driver"),
+    "print.server_spooler_stopped": ("print", "restart-spooler"),
     "endpoint.disk_full": ("remote", "clear-disk"),
 }
 

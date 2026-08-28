@@ -1,19 +1,10 @@
 from random import Random
 
-import pytest
-
 from vitsc.env.simulated import SimulatedEnvironment
 from vitsc.faults.registry import all_faults, get_fault
 from vitsc.persona.templates import TemplatePersona
 from vitsc.session.queue import CASCADE_MAX, SessionQueue
 from vitsc.world.seed import load_world
-
-# `print.server_spooler_stopped` is the reference cascade fault, but it does
-# not exist until Task 7. These two tests are what proves the mechanism this
-# task adds once that fault lands; until then they xfail on the lookup.
-NO_CASCADE_FAULT_YET = pytest.mark.xfail(
-    raises=KeyError, reason="print.server_spooler_stopped lands in Task 7", strict=True
-)
 
 
 def test_every_fault_declares_reporters():
@@ -34,7 +25,6 @@ def test_single_reporter_faults_open_exactly_one_ticket():
     assert tickets[0].cascade_id is None
 
 
-@NO_CASCADE_FAULT_YET
 def test_siblings_share_a_cascade_id_and_a_placement():
     env = SimulatedEnvironment(load_world())
     queue = SessionQueue(env=env, persona=TemplatePersona(), rng=Random(0), now=env.world.clock)
@@ -46,7 +36,6 @@ def test_siblings_share_a_cascade_id_and_a_placement():
     assert len({t.persona.name for t in tickets}) == len(tickets)
 
 
-@NO_CASCADE_FAULT_YET
 def test_fixing_the_root_clears_every_sibling():
     """Falls out of grading asking the world, not the ticket."""
     env = SimulatedEnvironment(load_world())
@@ -77,3 +66,24 @@ def test_open_one_is_still_available_for_single_ticket_tests():
     queue = SessionQueue(env=env, persona=TemplatePersona(), rng=Random(1), now=env.world.clock)
     ticket = queue.open_one()
     assert ticket is not None and ticket.id == 1
+
+
+def test_server_spooler_reporters_are_users_of_that_server_s_printers():
+    world = load_world()
+    fault = get_fault("print.server_spooler_stopped")
+    at = fault.placements(world)[0]
+    assert at.key == "MER-PRT-01"
+
+    reporters = fault.reporters(world, at)
+    assert len(reporters) >= 3
+    for sam in reporters:
+        machine = world.machine_for(sam)
+        assert machine is not None
+        assert any(world.printers[p].host == at.key for p in machine.installed_printers)
+
+
+def test_it_only_places_on_a_print_server():
+    world = load_world()
+    fault = get_fault("print.server_spooler_stopped")
+    for at in fault.placements(world):
+        assert world.machines[at.key].assigned_to is None

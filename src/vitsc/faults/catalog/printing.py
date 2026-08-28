@@ -11,9 +11,15 @@ from vitsc.faults.base import (
     UserSymptoms,
 )
 from vitsc.faults.registry import register
-from vitsc.world.models import ServiceState, World
+from vitsc.world.models import EventEntry, ServiceState, World
 
 GENERIC_DRIVER = "Generic / Text Only"
+# Any printer hosted on the print server works as the diagnostic target —
+# `printer.state`'s `SpoolerState` reads the *server's* service, not the
+# printer's own — so a literal name is fine, the same way `net.ping`'s
+# diagnostic already hardcodes `MER-FS-01`. A fault cannot resolve one from
+# `World` itself: `diagnostic_path()` receives only a `Placement`.
+_SERVER_DIAGNOSTIC_PRINTER = "PRT-ACC-01"
 
 
 def _workstations_with_printers(world: World) -> list[Placement]:
@@ -128,5 +134,94 @@ class WrongDriver(FaultBase):
         ]
 
 
+def _print_servers(world: World) -> list[Placement]:
+    hosted = {p.host for p in world.printers.values()}
+    return [
+        Placement(kind="machine", key=m.hostname)
+        for m in world.machines.values()
+        if m.assigned_to is None and m.hostname in hosted
+    ]
+
+
+class ServerSpoolerStopped(FaultBase):
+    """The reference cascade fault: one outage, several tickets.
+
+    The pair with `SpoolerStopped` above is deliberate, in the same spirit as
+    `account_locked`/`password_expired`: one person versus several is the
+    differential, and `scope` is the honest tell that it's a cascade.
+    """
+
+    id = "print.server_spooler_stopped"
+    domain = "printing"
+    difficulty = 2
+    canonical_title = "Print spooler service stopped on the print server"
+    supported_backends = frozenset({"simulated", "winrm"})
+    leak_terms = ["spool", "service", "server", "queue"]
+    escalation_is_correct = False
+    kb_articles = ["printing-nothing-prints"]
+
+    def placements(self, world: World) -> list[Placement]:
+        return _print_servers(world)
+
+    def apply(self, world: World, at: Placement, rng: Random) -> None:
+        machine = world.machines[at.key]
+        machine.services["Spooler"] = ServiceState.STOPPED
+        machine.event_log.append(
+            EventEntry(
+                log="System",
+                source="Service Control Manager",
+                event_id=7031,
+                level="Error",
+                at=world.clock,
+                message="The Print Spooler service terminated unexpectedly.",
+            )
+        )
+
+    def is_present(self, world: World, at: Placement) -> bool:
+        return world.machines[at.key].services.get("Spooler") is not ServiceState.RUNNING
+
+    def symptoms(self, world: World, at: Placement) -> UserSymptoms:
+        return UserSymptoms(
+            opening="Nothing comes out of the printer. I sent it four times.",
+            onset="Since about an hour ago.",
+            scope="A couple of people near me said the same.",
+            error_text=None,
+        )
+
+    def diagnostic_path(self, at: Placement) -> list[Query]:
+        return [
+            Query(kind="machine.services", target=PLACEHOLDER, args={"service": "Spooler"}),
+            Query(
+                kind="printer.state",
+                target=_SERVER_DIAGNOSTIC_PRINTER,
+                args={"from": PLACEHOLDER},
+            ),
+        ]
+
+    def canonical_resolutions(self) -> list[ResolutionPath]:
+        return [
+            ResolutionPath(
+                label="Restart the spooler service on the print server",
+                actions=[
+                    Action(
+                        kind="machine.restart_service",
+                        target=PLACEHOLDER,
+                        args={"service": "Spooler"},
+                    ),
+                ],
+            ),
+        ]
+
+    def reporters(self, world: World, at: Placement) -> list[str] | None:
+        printers_here = {p.name for p in world.printers.values() if p.host == at.key}
+        return sorted(
+            m.assigned_to
+            for m in world.machines.values()
+            if m.assigned_to is not None
+            and any(printer in printers_here for printer in m.installed_printers)
+        )
+
+
 register(SpoolerStopped())
 register(WrongDriver())
+register(ServerSpoolerStopped())

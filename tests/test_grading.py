@@ -359,6 +359,7 @@ def test_every_fault_produces_a_report_with_a_bound_shortest_path():
     """`{placement}`-style sentinels must all be resolved by the time a
     technician reads the report."""
     from vitsc.faults.registry import all_faults
+    from vitsc.session.queue import resolved_reporters
 
     for candidate in all_faults():
         world = load_world()
@@ -366,11 +367,9 @@ def test_every_fault_produces_a_report_with_a_bound_shortest_path():
         candidate.apply(world, placement, Random(0))
         env = SimulatedEnvironment(world)
         baseline = capture_baseline(world)
-        sam = (
-            placement.key
-            if placement.kind == "user"
-            else world.machines[placement.key.split("/")[0]].assigned_to
-        )
+        # `resolved_reporters` covers both the ordinary single-reporter case
+        # (`assigned_to`) and a cascade fault's own explicit `reporters()`.
+        sam = resolved_reporters(world, candidate, placement)[0]
         ticket = Ticket(
             id=1,
             fault_id=candidate.id,

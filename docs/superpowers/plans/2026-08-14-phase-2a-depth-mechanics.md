@@ -906,7 +906,7 @@ git add -A && git commit -m "feat(session): grade and report cascades as one roo
 - Consumes: `FaultBase`, `reporters` (Task 5).
 - Produces: `print.server_spooler_stopped`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Remove any xfail markers from Task 5's cascade tests, and add to `tests/test_cascade.py`:
 
@@ -941,12 +941,12 @@ def test_cascade_siblings_are_visibly_related_in_the_queue():
     assert body.count("C1") >= 2   # the shared cascade tag renders on each sibling
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_cascade.py -v`
 Expected: FAIL — `KeyError: 'print.server_spooler_stopped'`.
 
-- [ ] **Step 3: Write the fault**
+- [x] **Step 3: Write the fault**
 
 In `catalog/printing.py`, following `AccountLocked`'s shape:
 
@@ -964,16 +964,16 @@ In `catalog/printing.py`, following `AccountLocked`'s shape:
 
 The existing workstation-level `print.spooler_stopped` stays. The pair is deliberate, in the same spirit as `account_locked`/`password_expired`: one person versus several is the differential, and `scope` is the tell.
 
-- [ ] **Step 4: Show the relationship in the queue**
+- [x] **Step 4: Show the relationship in the queue**
 
 `_queue.html` renders `ticket.cascade_id` as a small tag on each sibling row. Do not group or merge the rows — the technician must notice the pattern, and pre-grouping does the noticing for them. A shared tag they can see is honest; a merged row is the answer.
 
-- [ ] **Step 5: Run the suite**
+- [x] **Step 5: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: fully green, including `tests/test_catalog.py` picking up the new fault automatically.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat(faults): add print.server_spooler_stopped as the reference cascade"

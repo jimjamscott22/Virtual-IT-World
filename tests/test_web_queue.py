@@ -57,3 +57,14 @@ def test_no_template_leaks_the_canonical_title(client):
     ticket = session.queue.active()[0]
     title = get_fault(ticket.fault_id).canonical_title
     assert title not in c.get(f"/ticket/{ticket.id}").text
+
+
+def test_cascade_siblings_are_visibly_related_in_the_queue(tmp_path):
+    from vitsc.faults.registry import get_fault
+
+    session = AppSession.build(db_path=tmp_path / "cascade.sqlite3", seed=1)
+    session.queue.open_cascade(get_fault("print.server_spooler_stopped"))
+    c = TestClient(create_app(session))
+
+    body = c.get("/").text
+    assert body.count("C1") >= 2   # the shared cascade tag renders on each sibling

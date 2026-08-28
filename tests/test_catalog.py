@@ -115,10 +115,13 @@ def test_every_fault_declares_a_backend_and_a_difficulty():
 
 
 def test_v1_catalog_is_complete():
+    """The ten v1 faults, plus Task 7's cascade fault — the first Phase 2a
+    addition to this set."""
     ids = {f.id for f in all_faults()}
     assert ids == {
         "ad.account_locked", "ad.password_expired", "ad.offboarded_reactivation",
         "share.group_membership_removed", "print.spooler_stopped", "print.wrong_driver",
+        "print.server_spooler_stopped",
         "net.static_dns_misconfig", "net.no_dhcp_lease",
         "endpoint.disk_full", "endpoint.failing_disk",
     }
