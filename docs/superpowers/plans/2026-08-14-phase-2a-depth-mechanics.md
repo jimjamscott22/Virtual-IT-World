@@ -992,7 +992,7 @@ git add -A && git commit -m "feat(faults): add print.server_spooler_stopped as t
 - Consumes: `Ticket`, `Disposition`, `escalation_is_correct`, `escalation_reason`, `escalation_evidence`.
 - Produces: `TicketState.AWAITING_TIER2`; `Ticket.escalate()`, `Ticket.reopen()`; `Tier2Response`, `review_escalation()`; `Grade.escalation_quality`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_tier2.py`:
 
@@ -1077,12 +1077,12 @@ def test_accepting_closes_the_ticket_as_escalated():
     assert ticket.disposition.value == "escalated"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_tier2.py -v`
 Expected: FAIL — no module `vitsc.session.tier2`.
 
-- [ ] **Step 3: Extend the ticket lifecycle**
+- [x] **Step 3: Extend the ticket lifecycle**
 
 `session/ticket.py`:
 - `TicketState` gains `AWAITING_TIER2 = "awaiting_tier2"`.
@@ -1093,7 +1093,7 @@ Expected: FAIL — no module `vitsc.session.tier2`.
 
 `persona/models.py`: `ChatTurn.speaker` becomes `Literal["tech", "user", "tier2"]`. Templates rendering chat must style the third speaker distinctly — it is not the reporting user, and confusing the two would be actively misleading.
 
-- [ ] **Step 4: Write the tier-2 reviewer**
+- [x] **Step 4: Write the tier-2 reviewer**
 
 `session/tier2.py`:
 
@@ -1121,16 +1121,16 @@ Tier-2 judges two things, in this order:
 
 Populate `escalation_reason` on the two escalate-correct faults: `ad.offboarded_reactivation` → HR/manager authorisation before re-enabling a departed employee's account; `endpoint.failing_disk` → hardware replacement and a data-preserving swap, not a software fix.
 
-- [ ] **Step 5: Grade the handoff**
+- [x] **Step 5: Grade the handoff**
 
 `grading.py`: add `escalation_quality: str` — `"none"` (never escalated), `"accepted"`, `"bounced"` — and include bounces in the correctness picture without double-punishing: a ticket that was bounced and then correctly fixed is still correct, but the after-action says the escalation was wrong. Add `SessionQueue.open_for(fault, at)` (used by the tests above) opening a ticket for a named fault and placement.
 
-- [ ] **Step 6: Run the suite**
+- [x] **Step 6: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A && git commit -m "feat(session): add a simulated tier-2 with accept and bounce"

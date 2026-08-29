@@ -237,14 +237,16 @@ class SessionQueue:
         tickets = self.open_ticket()
         return tickets[0] if tickets else None
 
-    def open_cascade(self, fault: Fault) -> list[Ticket]:
-        """Open a named fault's cascade directly, bypassing the scheduler.
-
-        For tests that want a specific cascade fault rather than whatever the
-        random candidate pool would deal.
+    def open_for(self, fault: Fault, at: Placement) -> list[Ticket]:
+        """Open a named fault at a named placement directly, bypassing the
+        scheduler. For tests that want a specific fault/placement rather than
+        whatever the random candidate pool would deal.
         """
-        placement = fault.placements(self.env.world)[0]
-        return self._open(fault, placement)
+        return self._open(fault, at)
+
+    def open_cascade(self, fault: Fault) -> list[Ticket]:
+        """Open a named fault's cascade directly, at its first placement."""
+        return self.open_for(fault, fault.placements(self.env.world)[0])
 
     def tick(self, now: datetime) -> list[Ticket]:
         """Open new tickets as the arrival interval elapses."""

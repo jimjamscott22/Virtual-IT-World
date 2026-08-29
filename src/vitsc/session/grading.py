@@ -27,6 +27,10 @@ class Grade(BaseModel):
     questions_before_first_mutation: int
     triage_correct: bool
     duplicate_mutations: int = 0
+    # "none": never escalated. "accepted": tier-2 took it (closed as escalated).
+    # "bounced": escalated at least once but closed some other way — sent
+    # somewhere it didn't belong, then kept and (maybe) fixed anyway.
+    escalation_quality: str = "none"
 
 
 def questions_before_first_mutation(ticket: Ticket) -> int:
@@ -95,6 +99,13 @@ def grade_ticket(
 
     elapsed = ticket.elapsed_minutes or 0.0
 
+    if ticket.disposition is Disposition.ESCALATED:
+        escalation_quality = "accepted"
+    elif ticket.tier2_bounces > 0:
+        escalation_quality = "bounced"
+    else:
+        escalation_quality = "none"
+
     return Grade(
         correct=correct,
         fault_cleared=cleared,
@@ -111,4 +122,5 @@ def grade_ticket(
         triage_correct=ticket.user_priority is None
         or ticket.user_priority == ticket.system_priority,
         duplicate_mutations=duplicate_mutations(ticket, siblings),
+        escalation_quality=escalation_quality,
     )

@@ -355,6 +355,32 @@ def test_a_single_clean_fix_is_not_accused_of_repeating():
     assert "fixed this" not in report.verdict
 
 
+def test_escalation_quality_is_none_when_never_escalated():
+    world, fault, placement, env, baseline, ticket = setup()
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    assert grade_ticket(ticket, fault, env, baseline).escalation_quality == "none"
+
+
+def test_escalation_quality_is_accepted_when_closed_as_escalated():
+    world, fault, placement, env, baseline, ticket = setup("endpoint.failing_disk")
+    ticket.close(Disposition.ESCALATED, at=NOW + timedelta(minutes=5))
+    assert grade_ticket(ticket, fault, env, baseline).escalation_quality == "accepted"
+
+
+def test_escalation_quality_is_bounced_after_a_bounce_and_a_direct_fix():
+    """A bounced-then-fixed ticket is still correct — the after-action is
+    where the wrong escalation gets said, not the grade."""
+    world, fault, placement, env, baseline, ticket = setup()
+    ticket.escalate(note="please fix", at=NOW)
+    ticket.reopen("This is within your scope to resolve.")
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=10))
+    grade = grade_ticket(ticket, fault, env, baseline)
+    assert grade.escalation_quality == "bounced"
+    assert grade.correct is True
+
+
 def test_every_fault_produces_a_report_with_a_bound_shortest_path():
     """`{placement}`-style sentinels must all be resolved by the time a
     technician reads the report."""
