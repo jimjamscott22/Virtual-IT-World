@@ -32,6 +32,7 @@ class AccountLocked(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["locked", "lockout", "active directory", "ad ", "unlock"]
     escalation_is_correct = False
+    kb_articles = ["identity-cannot-sign-in"]
 
     def placements(self, world: World) -> list[Placement]:
         return _staff_with_machines(world)
@@ -79,6 +80,7 @@ class PasswordExpired(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["expired", "password policy", "reset"]
     escalation_is_correct = False
+    kb_articles = ["identity-cannot-sign-in"]
 
     def placements(self, world: World) -> list[Placement]:
         return _staff_with_machines(world)
@@ -123,6 +125,7 @@ class OffboardedReactivation(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["disabled", "offboard", "terminated", "hr approval"]
     escalation_is_correct = True
+    kb_articles = ["identity-cannot-sign-in"]
     escalation_reason = (
         "Reactivating a departed employee's account needs HR or manager "
         "authorisation before it happens, not just a technician's say-so."
@@ -170,6 +173,7 @@ class ShareGroupRemoved(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["group", "membership", "permission", "security group", "acl"]
     escalation_is_correct = False
+    kb_articles = ["identity-missing-drive"]
 
     def placements(self, world: World) -> list[Placement]:
         return [

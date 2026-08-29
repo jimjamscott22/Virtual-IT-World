@@ -22,6 +22,7 @@ class StaticDnsMisconfig(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["dns", "resolver", "name resolution", "static"]
     escalation_is_correct = False
+    kb_articles = ["network-no-internet"]
 
     def placements(self, world: World) -> list[Placement]:
         return _workstations(world)
@@ -70,6 +71,7 @@ class NoDhcpLease(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["dhcp", "apipa", "lease", "169.254"]
     escalation_is_correct = False
+    kb_articles = ["network-no-internet"]
 
     def placements(self, world: World) -> list[Placement]:
         return _workstations(world)

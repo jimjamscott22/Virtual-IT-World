@@ -24,6 +24,7 @@ class DiskFull(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["disk", "full", "space", "profile", "temporary"]
     escalation_is_correct = False
+    kb_articles = ["endpoint-slow-or-failing"]
 
     def placements(self, world: World) -> list[Placement]:
         return _workstations(world)
@@ -72,6 +73,7 @@ class FailingDisk(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["smart", "disk", "drive failure", "hardware", "replace"]
     escalation_is_correct = True
+    kb_articles = ["endpoint-slow-or-failing"]
     escalation_reason = (
         "A pre-fail SMART status means the drive needs replacing and its data "
         "migrating — a hardware swap, not a software fix."
