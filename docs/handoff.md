@@ -1,6 +1,6 @@
 # Phase 2a handoff
 
-Written at the end of the session that landed Task 9. Delete this file when
+Written at the end of the session that landed Task 10. Delete this file when
 Phase 2a is complete — it records *situational* state (branch, PR, what is
 half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
@@ -8,102 +8,87 @@ half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
 | | |
 | --- | --- |
-| Branch | `claude/distractor-catalog-session-seeding-yufnrd` |
-| Pull request | [#5](https://github.com/jimjamscott22/Virtual-IT-World/pull/5) — **open, draft, not merged** |
-| Base | `main` (Tasks 1–3 already merged via #4) |
-| Tests | 521 passing, 0 xfailed |
+| Branch | `claude/next-task-docs-lt883z` |
+| Pull request | not yet opened this session |
+| Base | `main` (Tasks 1–9 merged via [#5](https://github.com/jimjamscott22/Virtual-IT-World/pull/5) — squash-merged as one PR covering distractors through the tier-2 web flow, despite the PR title naming only Task 4) |
+| Tests | 526 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
 
 ## What landed this session
 
-**Task 8** (the simulated tier-2) — see the previous handoff's content, now
-folded into `CLAUDE.md`/`AGENTS.md`'s Task 8 paragraph; PR #5 already
-carried it.
+**Task 10** from the plan (line 1242) — **knowledge base content and
+loader**:
 
-**Task 9** from the plan (line 1141) — **the tier-2 web flow**:
+- `src/vitsc/kb/models.py` (new): `Article(id, title, domain, keywords,
+  body)`. `domain` is its own `Literal` including `"general"`, a superset of
+  `Fault.Domain` rather than a reuse of it — a KB page can be general triage
+  advice with no single fault domain to pin it to.
+- `src/vitsc/kb/loader.py` (new): `load_articles()` reads
+  `src/vitsc/data/kb/*.md` via `importlib.resources.files("vitsc.data").
+  joinpath("kb")` (the same access pattern `world/seed.py` uses for
+  `company.yaml`), splits each file's YAML frontmatter from its body, and
+  caches the result with `lru_cache`. `get_article(id)` and
+  `search_articles(text)` (title/keyword/id substring scoring, ranked, `[]`
+  on no hit) both read through that cache.
+- `src/vitsc/data/kb/*.md` (new, 8 files): all original content, each with a
+  `## Check` or `## Steps` section — procedure and Meridian's own
+  conventions, never "symptom X means cause Y":
+  `general-triage-first-questions`, `general-meridian-estate`,
+  `identity-cannot-sign-in`, `identity-missing-drive`,
+  `network-no-internet`, `printing-nothing-prints` (the plan's own worked
+  example, used verbatim), `endpoint-slow-or-failing`,
+  `mail-cannot-send-or-receive`.
+- `tests/test_kb.py` (new): the plan's five tests, with one deliberate
+  deviation — see the deviation table entry below. `test_no_article_is_an_
+  answer_key` mechanically proves no article's title-plus-body contains a
+  fault's `id` or its `canonical_title`.
+- `kb_articles` populated on the eight faults (across identity/network/
+  endpoint/printing) that have a matching article today —
+  `ad.account_locked` and `ad.password_expired` both point at
+  `identity-cannot-sign-in` on purpose, per the plan's Step 5. The three
+  articles with no fault yet to link them (`general-triage-first-
+  questions`, `general-meridian-estate`, `mail-cannot-send-or-receive`) stay
+  unlinked: no fault is general-only, and the mail world model doesn't
+  exist until Task 12 — `test_every_fault_kb_link_resolves` only checks
+  links that exist, so this is inert, not failing, matching how the handoff
+  before this one already flagged populating `kb_articles` as optional
+  scope.
+- Verified the mechanism, not just green tests: `search_articles("printer")`
+  and `search_articles("zzzzz")` were both exercised directly at a REPL
+  against the real catalog before trusting the test, and every one of the
+  eight articles' frontmatter was re-read against `test_articles_load_with_
+  complete_frontmatter`'s field list by hand.
 
-- `web/routes/escalate.py` (new): `GET`/`POST /ticket/{id}/escalate`. `GET`
-  renders `_escalate.html`'s note form. `POST` calls `ticket.escalate(note,
-  at)`, then `review_escalation()`; on accept, `accept_escalation()` +
-  `close.py`'s shared after-action tail; on bounce, `reopen()` + render
-  `_tier2.html`. Guards `TicketState.CLOSED` with 409, matching
-  `close_ticket`.
-- `web/routes/close.py`: extracted `render_after_action(request, session,
-  ticket)` from `close_ticket()` — grade, build the report, persist it,
-  render `_afteraction.html` — so both routes' terminal tail exists exactly
-  once. `close_ticket()` is now three lines: fetch, guard, close, call the
-  helper.
-- `web/templates/_escalate.html` (new): the note textarea + submit form.
-- `web/templates/_tier2.html` (new): a small "Tier-2 sent this back to you"
-  banner wrapping `{% include "_ticket.html" %}` — the technician gets the
-  whole live ticket pane back (priority form, tools, chat with the new
-  `tier2` turn visible, both action buttons), not a dead end.
-- `web/templates/_ticket.html`: an `Escalate` button beside `Close` that
-  `hx-get`s the form into a dedicated `#escalate-form` slot, so opening the
-  form doesn't blow away the rest of the pane.
-- `web/templates/_chat.html`: a `tier2` turn renders with a capitalized
-  "Tier-2:" label and its own `chat-tier2` CSS class — distinct from `user`
-  and `tech`, per the plan's requirement. No CSS rule added for it, matching
-  this codebase's existing precedent (`.warning`, `.ticket-cascade`, etc.
-  also have no hand-authored styling — the class name is the "distinct"
-  hook, not a color).
-- `web/app.py`: registered the new router.
-- `session/afteraction.py`: `AfterAction.tier2` (mirrors
-  `Grade.escalation_quality`) and a verdict-chain entry checked **before**
-  the `grade.correct` branch — `escalation_quality == "bounced" and
-  fault_cleared` reads "You tried to hand this off; it was yours. You did
-  fix it after." This has to come first: a bounced-then-fixed ticket is
-  already `correct=True` (Task 8's design), so the existing `grade.correct`
-  check would otherwise fire first and silently erase the fact that tier-2
-  sent it back.
-- `web/templates/_afteraction.html`: renders `report.tier2` as its own line
-  when `"accepted"` or `"bounced"` (skipped for `"none"`).
-- **The direct "Escalated" option in the close-ticket dropdown is
-  untouched.** It still bypasses tier-2 entirely and closes straight to
-  `Disposition.ESCALATED` — Task 9 adds a second, *reviewed* path to the
-  same disposition; it does not retire the unreviewed one. Nothing in the
-  plan asked for that removal, and the existing test suite
-  (`test_web_close.py`, `test_end_to_end.py`) depends on the dropdown path
-  still working exactly as before.
-- `tests/test_web_escalate.py` (new): the plan's five draft tests plus two
-  more (`test_an_accepted_escalation_persists_to_the_store`,
-  `test_a_bounce_shows_the_tier2_turn_in_chat`). One test needed real
-  correction, not just adaptation — see the deviation table entry below;
-  its naive whole-page substring check for leak terms produced false
-  positives against ordinary template markup ("already", `hx-trigger=
-  "load"`), so it now uses `persona/client.py:scrub()` against the tier-2
-  response text itself, the same technique `test_persona_binding.py`
-  already uses for the analogous prompt-leak problem.
-- Verified live, not just through `TestClient`: started the real app
-  (`uv run python -m vitsc`), opened `/events` with `curl -N` to let the
-  simulated clock actually advance and a real ticket arrive, then drove
-  `GET`/`POST /ticket/{id}/escalate` against the running server with plain
-  `curl` requests. Confirmed the bounce path end to end: the tier-2 nudge
-  appeared in chat labeled "Tier-2:", and the returned HTML was the full,
-  still-interactive ticket pane (priority form, tools, chat, both
-  buttons) rather than a dead end. The accept path is covered by
-  `test_web_escalate.py`'s own real FastAPI request path, which was not
-  additionally hand-verified live since the scheduler doesn't offer a way
-  to force a specific fault to arrive through the running app without
-  waiting on random draws.
+### Previous sessions (superseded detail)
 
-## Next: Task 10
+Tasks 1–9 (fault-aware model persona through the tier-2 web flow) all landed
+in earlier sessions and are described in `CLAUDE.md`/`AGENTS.md`'s own
+per-task paragraphs, which are the current, non-duplicated record — this
+handoff no longer repeats them. All nine tasks are on `main` as of Task 10's
+start, squash-merged via [#5](https://github.com/jimjamscott22/Virtual-IT-World/pull/5).
 
-**Knowledge base content and loader** — plan line 1242. A green-field task
-(no existing module to modify): `kb/models.py` (`Article`), `kb/loader.py`
-(`load_articles()`, `get_article(id)`, `search_articles(text)`), and at
-least 8 markdown articles under `src/vitsc/data/kb/` with YAML frontmatter
-(`id`, `title`, `domain`, `keywords`), each containing a `## Check` or
-`## Steps` section — procedural, not diagnostic. The harness-style test
-(`test_no_article_is_an_answer_key`) mechanically proves no article names a
-fault id or its `canonical_title`, the same "prove the mechanism, not just
-green tests" discipline the fault/distractor conformance harnesses already
-use. `fault.kb_articles` (added in `FaultBase`, Task 5) is currently `[]` on
-every fault except `print.server_spooler_stopped`
-(`["printing-nothing-prints"]`, Task 7) — `test_every_fault_kb_link_resolves`
-only checks links that exist, so this is the one fault this task's article
-set is required to cover; populating `kb_articles` on the rest is optional
-scope, not blocking.
+## Next: Task 11
+
+**The KB tool and after-action links** — plan line 1367. Consumes Task 10's
+loader. `src/vitsc/tools/kb.py`: a plain `Tool` (not `DispatchTool` — it
+reads articles, not the environment, so it has no `Query` to issue), with
+`search`/`read` commands; it must still record a `ToolCall` with
+`mutating=False` on every call, since the log is what grading reads. Register
+it in `tools/registry.py`, and add `"kb"` to
+`tests/test_web_tools.py::test_tool_pane_lists_every_tool`'s enumeration.
+`grading.py` gains `Grade.kb_consulted: bool` (any `kb` tool call on the
+ticket) — a diligence signal only, never a correctness gate.
+`afteraction.py` gains `AfterAction.kb_suggestions: list[str]` from
+`fault.kb_articles`, rendered as links in `_afteraction.html`, distinguishing
+an article that was read from one that would have helped; if the technician
+found a distractor, name it too via `SessionQueue.distractors` and its
+`note`. `web/routes/kb.py`: `GET /kb?q=` and `GET /kb/{id}` rendering
+`_kb.html`, so the KB is browsable outside a ticket. Test file:
+`tests/test_tools_kb.py`, `tests/test_web_kb.py` — the plan's draft
+`test_the_kb_tool_does_not_import_faults_or_world` AST-walks
+`tools/kb.py`'s own source, which is a stronger, more local check than the
+package-wide `tests/test_architecture.py` sweep; keep both rather than
+picking one.
 
 ## Conventions this codebase expects
 
@@ -172,7 +157,7 @@ Things that are easy to get wrong and are not obvious from the code alone.
 
 ## Open threads
 
-Not blocking Task 10, but real, and none of them are recorded anywhere else.
+Not blocking Task 11, but real, and none of them are recorded anywhere else.
 
 - **`ipconfig` rendering has no test coverage.** `env/simulated.py`'s
   `_read_net_ipconfig` builds `ipconfig`-shaped output whose dotted-leader
@@ -196,10 +181,10 @@ Not blocking Task 10, but real, and none of them are recorded anywhere else.
 ## Resuming
 
 ```bash
-git checkout claude/distractor-catalog-session-seeding-yufnrd
+git checkout main   # Tasks 1-10 are all here; open a new branch off it for Task 11
 uv sync
-uv run pytest          # expect 521 passed, 0 xfailed
+uv run pytest          # expect 526 passed, 0 xfailed
 ```
 
-Then read Task 10 in the plan (line 1242) and continue. `CLAUDE.md` is the
+Then read Task 11 in the plan (line 1367) and continue. `CLAUDE.md` is the
 architectural brief and is current as of this handoff.

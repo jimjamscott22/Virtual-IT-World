@@ -38,6 +38,7 @@ class SpoolerStopped(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["spooler", "service", "print queue"]
     escalation_is_correct = False
+    kb_articles = ["printing-nothing-prints"]
 
     def placements(self, world: World) -> list[Placement]:
         return _workstations_with_printers(world)
@@ -83,6 +84,7 @@ class WrongDriver(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["driver", "pcl", "postscript", "generic"]
     escalation_is_correct = False
+    kb_articles = ["printing-nothing-prints"]
 
     def placements(self, world: World) -> list[Placement]:
         return [
