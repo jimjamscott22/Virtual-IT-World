@@ -6,6 +6,9 @@
      hx-get="/ticket/{{ t.id }}" hx-target="#detail" hx-swap="innerHTML">
   <span class="ticket-id">#{{ t.id }}</span>
   <span class="ticket-priority">P{{ t.system_priority.value }}</span>
+  {% if t.cascade_id %}
+  <span class="ticket-cascade">{{ t.cascade_id }}</span>
+  {% endif %}
   <span class="ticket-persona">{{ t.persona.name }}</span>
   <span class="ticket-opening">{{ t.report_text }}</span>
   <span class="ticket-sla" id="sla-{{ t.id }}">SLA in {{ ((t.deadline - now).total_seconds() // 60) | int }} min</span>

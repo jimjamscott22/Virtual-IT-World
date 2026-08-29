@@ -33,7 +33,7 @@ def test_an_unreachable_endpoint_does_not_break_the_session(monkeypatch, tmp_pat
     session = AppSession.build(db_path=tmp_path / "t.sqlite3", seed=1)
     assert isinstance(session.queue.persona, LMStudioPersona)
 
-    ticket = session.queue.open_ticket()
+    ticket = session.queue.open_one()
     assert ticket.report_text          # fell back, did not raise
     assert session.degraded is True
 

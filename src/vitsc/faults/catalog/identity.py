@@ -3,6 +3,7 @@ from random import Random
 
 from vitsc.env.base import Action, Query
 from vitsc.faults.base import (
+    FaultBase,
     PLACEHOLDER,
     PLACEHOLDER_GROUP,
     PLACEHOLDER_MACHINE,
@@ -23,7 +24,7 @@ def _staff_with_machines(world: World) -> list[Placement]:
     ]
 
 
-class AccountLocked:
+class AccountLocked(FaultBase):
     id = "ad.account_locked"
     domain = "identity"
     difficulty = 1
@@ -70,7 +71,7 @@ class AccountLocked:
         ]
 
 
-class PasswordExpired:
+class PasswordExpired(FaultBase):
     id = "ad.password_expired"
     domain = "identity"
     difficulty = 2
@@ -110,7 +111,7 @@ class PasswordExpired:
         ]
 
 
-class OffboardedReactivation:
+class OffboardedReactivation(FaultBase):
     """Escalate-correct: reactivating a departed employee's account needs
     HR/manager authorisation. A technician who just clicks Enable is wrong,
     even though the symptom clears."""
@@ -122,6 +123,10 @@ class OffboardedReactivation:
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["disabled", "offboard", "terminated", "hr approval"]
     escalation_is_correct = True
+    escalation_reason = (
+        "Reactivating a departed employee's account needs HR or manager "
+        "authorisation before it happens, not just a technician's say-so."
+    )
 
     def placements(self, world: World) -> list[Placement]:
         return [Placement(kind="user", key="h.reyes")]
@@ -157,7 +162,7 @@ class OffboardedReactivation:
         ]
 
 
-class ShareGroupRemoved:
+class ShareGroupRemoved(FaultBase):
     id = "share.group_membership_removed"
     domain = "identity"
     difficulty = 3

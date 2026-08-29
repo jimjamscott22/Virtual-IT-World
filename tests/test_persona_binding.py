@@ -81,7 +81,7 @@ def test_leak_terms_never_reach_the_prompt():
 def test_queue_binds_the_open_ticket_s_fault():
     env = SimulatedEnvironment(load_world())
     queue = SessionQueue(env=env, persona=TemplatePersona(), rng=Random(3), now=env.world.clock)
-    ticket = queue.open_ticket()
+    ticket = queue.open_one()
     bound = queue.persona_for(ticket)
     assert bound is not None
 

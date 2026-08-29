@@ -1,0 +1,5 @@
+<form class="escalate-form" hx-post="/ticket/{{ ticket.id }}/escalate" hx-target="#detail" hx-swap="innerHTML">
+  <label for="note">What did you find, and where?</label>
+  <textarea name="note" id="note" placeholder="e.g. checked the account's status, here's what I saw..."></textarea>
+  <button type="submit">Send to tier-2</button>
+</form>

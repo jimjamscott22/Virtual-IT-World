@@ -7,10 +7,10 @@ from vitsc.faults.registry import get_fault
 from vitsc.persona.models import ChatTurn
 from vitsc.persona.personas import card_for
 from vitsc.session.afteraction import build_after_action
-from vitsc.session.grading import grade_ticket
+from vitsc.session.grading import duplicate_mutations, grade_ticket
 from vitsc.session.ticket import SLA_MINUTES, Disposition, Priority, Ticket
 from vitsc.tools.ad import ADConsole
-from vitsc.tools.base import ToolLog
+from vitsc.tools.base import ToolCall, ToolLog
 from vitsc.world.invariants import capture_baseline
 from vitsc.world.seed import load_world
 
@@ -265,10 +265,127 @@ def test_mutating_with_no_questions_is_accused():
     assert build_after_action(ticket, fault, grade, env.world).touched_before_asking is True
 
 
+def _mutating_call(tool: str, command: str, args: dict[str, str]) -> ToolCall:
+    return ToolCall(tool=tool, command=command, args=args, ok=True, mutating=True, rendered="")
+
+
+def test_repeating_the_same_mutation_is_counted():
+    """Fixing one root cause three times is not three fixes."""
+    world, fault, placement, env, baseline, ticket = setup()
+    ticket.tool_calls = [
+        _mutating_call("print", "restart-spooler", {"host": "MER-PRT-01"}),
+        _mutating_call("print", "restart-spooler", {"host": "MER-PRT-01"}),
+    ]
+    assert duplicate_mutations(ticket) == 1
+
+
+def test_duplicate_mutations_counts_the_same_fix_across_siblings():
+    """A technician re-running one fix once per cascade ticket is one fix, not several."""
+    world, fault, placement, env, baseline, ticket = setup()
+    ticket.tool_calls = [_mutating_call("print", "restart-spooler", {"host": "MER-PRT-01"})]
+    sibling = ticket.model_copy(update={
+        "id": 2,
+        "tool_calls": [_mutating_call("print", "restart-spooler", {"host": "MER-PRT-01"})],
+    })
+    assert duplicate_mutations(ticket, siblings=[ticket, sibling]) == 1
+
+
+def test_distinct_mutations_are_not_counted_as_duplicates():
+    world, fault, placement, env, baseline, ticket = setup()
+    ticket.tool_calls = [
+        _mutating_call("ad", "unlock", {"sam": "m.alvarez"}),
+        _mutating_call("ad", "unlock", {"sam": "d.okafor"}),
+    ]
+    assert duplicate_mutations(ticket) == 0
+
+
+def test_grading_a_cascade_sibling_does_not_change_pass_fail():
+    """`siblings` only feeds the report — `is_present()` already covers every
+    sibling, so passing it must not change correctness or clearance."""
+    world, fault, placement, env, baseline, ticket = setup()
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    sibling = ticket.model_copy(update={"id": 2})
+
+    without = grade_ticket(ticket, fault, env, baseline)
+    with_siblings = grade_ticket(ticket, fault, env, baseline, siblings=[ticket, sibling])
+    assert with_siblings.correct == without.correct
+    assert with_siblings.fault_cleared == without.fault_cleared
+
+
+def test_after_action_names_the_cascade():
+    world, fault, placement, env, baseline, ticket = setup()
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    grade = grade_ticket(ticket, fault, env, baseline)
+    siblings = [ticket, ticket.model_copy(update={"id": 2}), ticket.model_copy(update={"id": 3})]
+
+    report = build_after_action(ticket, fault, grade, env.world, siblings=siblings)
+    assert "3 tickets" in report.cascade_note
+    assert report.cascade_note.endswith(".")
+
+
+def test_after_action_has_no_cascade_note_for_a_single_ticket():
+    world, fault, placement, env, baseline, ticket = setup()
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    grade = grade_ticket(ticket, fault, env, baseline)
+    report = build_after_action(ticket, fault, grade, env.world)
+    assert report.cascade_note == ""
+
+
+def test_after_action_calls_out_a_repeated_fix():
+    world, fault, placement, env, baseline, ticket = setup()
+    log = ToolLog()
+    ADConsole().invoke(env, log, "unlock", {"sam": placement.key})
+    ADConsole().invoke(env, log, "unlock", {"sam": placement.key})
+    ticket.tool_calls = log.calls
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    grade = grade_ticket(ticket, fault, env, baseline)
+    report = build_after_action(ticket, fault, grade, env.world)
+    assert "fixed this 2 times" in report.verdict
+
+
+def test_a_single_clean_fix_is_not_accused_of_repeating():
+    world, fault, placement, env, baseline, ticket = setup()
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    grade = grade_ticket(ticket, fault, env, baseline)
+    report = build_after_action(ticket, fault, grade, env.world)
+    assert "fixed this" not in report.verdict
+
+
+def test_escalation_quality_is_none_when_never_escalated():
+    world, fault, placement, env, baseline, ticket = setup()
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    assert grade_ticket(ticket, fault, env, baseline).escalation_quality == "none"
+
+
+def test_escalation_quality_is_accepted_when_closed_as_escalated():
+    world, fault, placement, env, baseline, ticket = setup("endpoint.failing_disk")
+    ticket.close(Disposition.ESCALATED, at=NOW + timedelta(minutes=5))
+    assert grade_ticket(ticket, fault, env, baseline).escalation_quality == "accepted"
+
+
+def test_escalation_quality_is_bounced_after_a_bounce_and_a_direct_fix():
+    """A bounced-then-fixed ticket is still correct — the after-action is
+    where the wrong escalation gets said, not the grade."""
+    world, fault, placement, env, baseline, ticket = setup()
+    ticket.escalate(note="please fix", at=NOW)
+    ticket.reopen("This is within your scope to resolve.")
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=10))
+    grade = grade_ticket(ticket, fault, env, baseline)
+    assert grade.escalation_quality == "bounced"
+    assert grade.correct is True
+
+
 def test_every_fault_produces_a_report_with_a_bound_shortest_path():
     """`{placement}`-style sentinels must all be resolved by the time a
     technician reads the report."""
     from vitsc.faults.registry import all_faults
+    from vitsc.session.queue import resolved_reporters
 
     for candidate in all_faults():
         world = load_world()
@@ -276,11 +393,9 @@ def test_every_fault_produces_a_report_with_a_bound_shortest_path():
         candidate.apply(world, placement, Random(0))
         env = SimulatedEnvironment(world)
         baseline = capture_baseline(world)
-        sam = (
-            placement.key
-            if placement.kind == "user"
-            else world.machines[placement.key.split("/")[0]].assigned_to
-        )
+        # `resolved_reporters` covers both the ordinary single-reporter case
+        # (`assigned_to`) and a cascade fault's own explicit `reporters()`.
+        sam = resolved_reporters(world, candidate, placement)[0]
         ticket = Ticket(
             id=1,
             fault_id=candidate.id,

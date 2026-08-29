@@ -18,7 +18,7 @@ class PersonaCard(BaseModel):
 
 
 class ChatTurn(BaseModel):
-    speaker: Literal["tech", "user"]
+    speaker: Literal["tech", "user", "tier2"]
     text: str
     # Wall clock, matching `ToolCall.at`, because this exists to order chat
     # against tool calls ("did you ask before you touched"). SLA timing is the

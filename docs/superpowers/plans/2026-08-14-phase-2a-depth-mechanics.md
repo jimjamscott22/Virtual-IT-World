@@ -546,7 +546,7 @@ git add -A && git commit -m "feat(distractors): add the Distractor protocol and 
 - Consumes: Task 3's protocol and registry.
 - Produces: five distractors; `seed_distractors(world, rng, count)`; `SessionQueue.distractors`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Extend `tests/test_distractors.py`:
 
@@ -585,12 +585,12 @@ def test_distractors_are_off_by_default_for_deterministic_tests():
     assert queue.distractors == []
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_distractors.py tests/test_queue.py -v`
 Expected: FAIL — no `vitsc.distractors.catalog`, `SessionQueue` takes no `distractor_count`.
 
-- [ ] **Step 3: Author the five distractors**
+- [x] **Step 3: Author the five distractors**
 
 `distractors/catalog.py`. Each must be plausible in a real estate of Windows machines, visible through an existing query, and mechanically inert:
 
@@ -606,7 +606,7 @@ Two rules the harness will catch but the author should hold anyway: never touch 
 
 For the offline-printer placement filter, note that all three seeded printers are installed on some workstation, so this distractor's `placements()` may legitimately return `[]` today and start applying in 2b when the estate grows. Returning `[]` is a supported answer — the harness parametrizes over zero cases and the seeder skips it.
 
-- [ ] **Step 4: Seed them at session start**
+- [x] **Step 4: Seed them at session start**
 
 In `session/queue.py`:
 
@@ -636,12 +636,12 @@ def seed_distractors(world: World, rng: Random, count: int) -> list[tuple[str, P
 
 `SessionQueue.__init__` gains `distractor_count: int = 0`, calls `seed_distractors` **before** `capture_baseline`, and stores the result on `self.distractors`. Default 0 keeps every existing test deterministic; `AppSession.build` passes 3 so a real session always has noise.
 
-- [ ] **Step 5: Run the suite**
+- [x] **Step 5: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: all green, with the distractor harness now covering ~5 cases per test.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat(distractors): add the v1 catalog and seed it at session start"
@@ -659,7 +659,7 @@ git add -A && git commit -m "feat(distractors): add the v1 catalog and seed it a
 - Consumes: `Fault`, `Placement`, `SessionQueue`.
 - Produces: `FaultBase`; `Fault.reporters`; `Ticket.cascade_id`; `SessionQueue.open_ticket() -> list[Ticket]`, `open_one() -> Ticket | None`; `CASCADE_MAX`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_cascade.py`:
 
@@ -737,12 +737,12 @@ def test_open_one_is_still_available_for_single_ticket_tests():
     assert ticket is not None and ticket.id == 1
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_cascade.py -v`
 Expected: FAIL — no `reporters`, no `open_cascade`, no `print.server_spooler_stopped` (Task 7 adds the fault; this task may xfail that case and Task 7 removes the marker).
 
-- [ ] **Step 3: Add `FaultBase` and retrofit the ten**
+- [x] **Step 3: Add `FaultBase` and retrofit the ten**
 
 In `faults/base.py`:
 
@@ -771,7 +771,7 @@ class FaultBase:
 
 Add the four members to the `Fault` protocol, and make each of the ten catalog classes inherit `FaultBase`. No other change to them; `tests/test_catalog.py` must stay green throughout.
 
-- [ ] **Step 4: Extend the ticket and the scheduler**
+- [x] **Step 4: Extend the ticket and the scheduler**
 
 `session/ticket.py`: add `cascade_id: str | None = None`. Change `priority_for` to take the reporter count — impact on several people outranks a single senior user:
 
@@ -800,16 +800,16 @@ def priority_for(fault: Fault, user: ADUser, reporters: int = 1) -> Priority:
 
 Each sibling gets its own `PersonaCard` (different person, different literacy and mood) and its own `report_text` from that person's persona — three tickets describing one outage in three voices is the thing being drilled.
 
-- [ ] **Step 5: Update every caller**
+- [x] **Step 5: Update every caller**
 
 `grep -rn "open_ticket" tests/ src/` and update: `tests/test_queue.py`, `tests/test_web_*.py` fixtures, `tests/test_end_to_end.py`, `tests/test_grading.py`. Prefer `open_one()` in fixtures that want exactly one ticket.
 
-- [ ] **Step 6: Run the suite**
+- [x] **Step 6: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: green except the `print.server_spooler_stopped` cases, which Task 7 delivers.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A && git commit -m "feat(session): add cascade reporters and plural ticket arrivals"
@@ -827,7 +827,7 @@ git add -A && git commit -m "feat(session): add cascade reporters and plural tic
 - Consumes: `cascade_id` (Task 5).
 - Produces: `Grade.duplicate_mutations`; `AfterAction.cascade_note`; `grade_ticket(..., siblings=...)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Extend `tests/test_grading.py`:
 
@@ -870,12 +870,12 @@ def test_after_action_has_no_cascade_note_for_a_single_ticket():
     assert report.cascade_note == ""
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_grading.py -v`
 Expected: FAIL — `grade_ticket` takes no `siblings`, no `duplicate_mutations`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `grading.py`: add `duplicate_mutations(ticket) -> int` counting repeated `(tool, command, args)` mutating calls beyond the first, and a `duplicate_mutations` field on `Grade`. Add an optional `siblings: list[Ticket] | None = None` parameter to `grade_ticket`; it does **not** change the pass/fail logic — `is_present()` against the live world already covers siblings — it only feeds the report. Say so in a comment, because the temptation to special-case cascades in the gate is exactly what the core principle forbids.
 
@@ -883,12 +883,12 @@ Expected: FAIL — `grade_ticket` takes no `siblings`, no `duplicate_mutations`.
 
 `store.py`: add `cascade_id` to the schema and `ClosedRecord` so history can show which closures were one outage. Use `ALTER TABLE ... ADD COLUMN` guarded by a `PRAGMA table_info` check, so an existing database survives.
 
-- [ ] **Step 4: Run the suite**
+- [x] **Step 4: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: green except Task 7's fault.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(session): grade and report cascades as one root cause"
@@ -906,7 +906,7 @@ git add -A && git commit -m "feat(session): grade and report cascades as one roo
 - Consumes: `FaultBase`, `reporters` (Task 5).
 - Produces: `print.server_spooler_stopped`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Remove any xfail markers from Task 5's cascade tests, and add to `tests/test_cascade.py`:
 
@@ -941,12 +941,12 @@ def test_cascade_siblings_are_visibly_related_in_the_queue():
     assert body.count("C1") >= 2   # the shared cascade tag renders on each sibling
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_cascade.py -v`
 Expected: FAIL — `KeyError: 'print.server_spooler_stopped'`.
 
-- [ ] **Step 3: Write the fault**
+- [x] **Step 3: Write the fault**
 
 In `catalog/printing.py`, following `AccountLocked`'s shape:
 
@@ -964,16 +964,16 @@ In `catalog/printing.py`, following `AccountLocked`'s shape:
 
 The existing workstation-level `print.spooler_stopped` stays. The pair is deliberate, in the same spirit as `account_locked`/`password_expired`: one person versus several is the differential, and `scope` is the tell.
 
-- [ ] **Step 4: Show the relationship in the queue**
+- [x] **Step 4: Show the relationship in the queue**
 
 `_queue.html` renders `ticket.cascade_id` as a small tag on each sibling row. Do not group or merge the rows — the technician must notice the pattern, and pre-grouping does the noticing for them. A shared tag they can see is honest; a merged row is the answer.
 
-- [ ] **Step 5: Run the suite**
+- [x] **Step 5: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: fully green, including `tests/test_catalog.py` picking up the new fault automatically.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat(faults): add print.server_spooler_stopped as the reference cascade"
@@ -992,7 +992,7 @@ git add -A && git commit -m "feat(faults): add print.server_spooler_stopped as t
 - Consumes: `Ticket`, `Disposition`, `escalation_is_correct`, `escalation_reason`, `escalation_evidence`.
 - Produces: `TicketState.AWAITING_TIER2`; `Ticket.escalate()`, `Ticket.reopen()`; `Tier2Response`, `review_escalation()`; `Grade.escalation_quality`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_tier2.py`:
 
@@ -1077,12 +1077,12 @@ def test_accepting_closes_the_ticket_as_escalated():
     assert ticket.disposition.value == "escalated"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_tier2.py -v`
 Expected: FAIL — no module `vitsc.session.tier2`.
 
-- [ ] **Step 3: Extend the ticket lifecycle**
+- [x] **Step 3: Extend the ticket lifecycle**
 
 `session/ticket.py`:
 - `TicketState` gains `AWAITING_TIER2 = "awaiting_tier2"`.
@@ -1093,7 +1093,7 @@ Expected: FAIL — no module `vitsc.session.tier2`.
 
 `persona/models.py`: `ChatTurn.speaker` becomes `Literal["tech", "user", "tier2"]`. Templates rendering chat must style the third speaker distinctly — it is not the reporting user, and confusing the two would be actively misleading.
 
-- [ ] **Step 4: Write the tier-2 reviewer**
+- [x] **Step 4: Write the tier-2 reviewer**
 
 `session/tier2.py`:
 
@@ -1121,16 +1121,16 @@ Tier-2 judges two things, in this order:
 
 Populate `escalation_reason` on the two escalate-correct faults: `ad.offboarded_reactivation` → HR/manager authorisation before re-enabling a departed employee's account; `endpoint.failing_disk` → hardware replacement and a data-preserving swap, not a software fix.
 
-- [ ] **Step 5: Grade the handoff**
+- [x] **Step 5: Grade the handoff**
 
 `grading.py`: add `escalation_quality: str` — `"none"` (never escalated), `"accepted"`, `"bounced"` — and include bounces in the correctness picture without double-punishing: a ticket that was bounced and then correctly fixed is still correct, but the after-action says the escalation was wrong. Add `SessionQueue.open_for(fault, at)` (used by the tests above) opening a ticket for a named fault and placement.
 
-- [ ] **Step 6: Run the suite**
+- [x] **Step 6: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A && git commit -m "feat(session): add a simulated tier-2 with accept and bounce"
@@ -1149,7 +1149,7 @@ git add -A && git commit -m "feat(session): add a simulated tier-2 with accept a
 - Consumes: Task 8's `review_escalation`, `escalate`, `reopen`, `accept_escalation`.
 - Produces: `GET /ticket/{id}/escalate`, `POST /ticket/{id}/escalate`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_web_escalate.py`:
 
@@ -1213,12 +1213,12 @@ def test_the_bounce_text_does_not_name_the_cause(client):
         assert term.strip().lower() not in r.text.lower()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_web_escalate.py -v`
 Expected: FAIL — 404, no escalate route.
 
-- [ ] **Step 3: Implement the route**
+- [x] **Step 3: Implement the route**
 
 `web/routes/escalate.py`: `GET` renders the note form (with a reminder of what a usable handoff contains). `POST` calls `ticket.escalate(note, at=world.clock)`, then `review_escalation`. On accept: `accept_escalation`, grade, build the after-action, `store.save_closed`, render `_afteraction.html` — the same tail as `close.py`, so factor that shared sequence into one helper rather than duplicating it. On bounce: `ticket.reopen(response.text)` and render `_tier2.html` inside the ticket pane. Guard `TicketState.CLOSED` with 409, matching `close_ticket`.
 
@@ -1226,12 +1226,12 @@ Register the router in `app.py`. Add an "Escalate" control to `_ticket.html` bes
 
 `afteraction.py`: add `tier2: str` carrying the outcome, and extend the verdict chain — a bounced-then-fixed ticket reads "You tried to hand this off; it was yours. You did fix it after."
 
-- [ ] **Step 4: Run the suite**
+- [x] **Step 4: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: all green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(web): add the tier-2 escalation flow"

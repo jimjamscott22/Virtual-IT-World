@@ -83,11 +83,8 @@ def test_all_distractors_is_sorted_by_id(clean_registry):
     ]
 
 
-def test_the_catalog_is_importable_and_currently_empty():
-    """Task 3 ships the mechanism; Task 4 fills it.
-
-    When the catalog lands this assertion flips to a non-empty one — which is
-    the point: an empty catalog silently skips every case in the conformance
-    harness, so it should be stated out loud rather than discovered.
-    """
-    assert registry.all_distractors() == []
+def test_the_catalog_is_not_empty():
+    """Task 3 shipped the mechanism with an empty catalog on purpose; Task 4
+    fills it. An empty catalog would silently skip every case in the
+    conformance harness, so its non-emptiness is asserted out loud here."""
+    assert registry.all_distractors() != []

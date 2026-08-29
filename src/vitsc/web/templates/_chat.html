@@ -1,6 +1,8 @@
 <div id="chat">
   {% for turn in ticket.chat %}
-  <p class="chat-turn chat-{{ turn.speaker }}"><strong>{{ turn.speaker }}:</strong> {{ turn.text }}</p>
+  <p class="chat-turn chat-{{ turn.speaker }}">
+    <strong>{{ "Tier-2" if turn.speaker == "tier2" else turn.speaker }}:</strong> {{ turn.text }}
+  </p>
   {% endfor %}
   <form hx-post="/ticket/{{ ticket.id }}/chat" hx-target="#chat" hx-swap="outerHTML">
     <input type="text" name="message" placeholder="Ask a question" autocomplete="off">

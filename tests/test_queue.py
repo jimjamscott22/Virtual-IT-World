@@ -29,20 +29,20 @@ def queue():
 
 
 def test_opening_a_ticket_applies_a_real_fault(queue):
-    ticket = queue.open_ticket()
+    ticket = queue.open_one()
     fault = get_fault(ticket.fault_id)
     assert fault.is_present(queue.env.world, ticket.placement) is True
 
 
 def test_ticket_text_comes_from_the_persona(queue):
-    ticket = queue.open_ticket()
+    ticket = queue.open_one()
     assert ticket.symptoms.opening in ticket.report_text
 
 
 def test_the_reporter_is_the_person_the_fault_actually_affects(queue):
     """User, machine and printer placements must all resolve to a real person."""
     for _ in range(MAX_ACTIVE):
-        ticket = queue.open_ticket()
+        ticket = queue.open_one()
         assert ticket.persona.name in {
             u.display_name for u in queue.env.world.org.users.values()
         }
@@ -78,7 +78,7 @@ def test_a_new_arrival_does_not_launder_earlier_collateral_damage(queue):
 def test_damage_survives_every_remaining_arrival(queue):
     queue.open_ticket()
     queue.env.world.org.groups["ACC-Share-RW"].members.remove("m.alvarez")
-    while queue.open_ticket() is not None:
+    while queue.open_ticket():
         pass
     assert any("m.alvarez" in v for v in check_invariants(queue.env.world, queue.baseline))
 
@@ -92,9 +92,9 @@ def test_queue_stops_at_max_active(queue):
 def test_closing_frees_a_slot(queue):
     for _ in range(MAX_ACTIVE):
         queue.open_ticket()
-    assert queue.open_ticket() is None
+    assert queue.open_ticket() == []
     queue.active()[0].close(Disposition.RESOLVED, at=NOW)
-    assert queue.open_ticket() is not None
+    assert queue.open_ticket() != []
 
 
 def test_no_duplicate_fault_and_placement_while_active(queue):
@@ -106,7 +106,7 @@ def test_no_duplicate_fault_and_placement_while_active(queue):
 
 def test_an_unfixed_fault_is_not_handed_out_again(queue):
     """Closing a ticket without fixing it must not re-deal the same fault."""
-    ticket = queue.open_ticket()
+    ticket = queue.open_one()
     ticket.close(Disposition.ESCALATED, at=NOW)
     for _ in range(MAX_ACTIVE):
         queue.open_ticket()
@@ -160,3 +160,19 @@ def test_the_same_seed_deals_the_same_session():
 
 def test_different_seeds_deal_different_sessions():
     assert _dealt(7) != _dealt(8)
+
+
+def test_session_seeds_distractors_before_the_baseline():
+    env = SimulatedEnvironment(load_world())
+    queue = SessionQueue(
+        env=env, persona=TemplatePersona(), rng=Random(7), now=NOW, distractor_count=3
+    )
+    assert len(queue.distractors) == 3
+    # Seeded state is inherited, not collateral damage.
+    assert check_invariants(env.world, queue.baseline) == []
+
+
+def test_distractors_are_off_by_default_for_deterministic_tests():
+    env = SimulatedEnvironment(load_world())
+    queue = SessionQueue(env=env, persona=TemplatePersona(), rng=Random(7), now=NOW)
+    assert queue.distractors == []

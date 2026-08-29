@@ -1,7 +1,7 @@
 from random import Random
 
 from vitsc.env.base import Action, Query
-from vitsc.faults.base import PLACEHOLDER, Placement, ResolutionPath, UserSymptoms
+from vitsc.faults.base import FaultBase, PLACEHOLDER, Placement, ResolutionPath, UserSymptoms
 from vitsc.faults.registry import register
 from vitsc.world.models import EventEntry, ProfileState, SmartStatus, World
 
@@ -16,7 +16,7 @@ def _workstations(world: World) -> list[Placement]:
     ]
 
 
-class DiskFull:
+class DiskFull(FaultBase):
     id = "endpoint.disk_full"
     domain = "endpoint"
     difficulty = 2
@@ -59,7 +59,7 @@ class DiskFull:
         ]
 
 
-class FailingDisk:
+class FailingDisk(FaultBase):
     """Escalate-correct: a pre-fail SMART status means the drive needs
     replacing, not clearing. There is no technician fix — the correct
     disposition is escalation, which is what `escalation_is_correct` and an
@@ -72,6 +72,10 @@ class FailingDisk:
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["smart", "disk", "drive failure", "hardware", "replace"]
     escalation_is_correct = True
+    escalation_reason = (
+        "A pre-fail SMART status means the drive needs replacing and its data "
+        "migrating — a hardware swap, not a software fix."
+    )
 
     def placements(self, world: World) -> list[Placement]:
         return _workstations(world)

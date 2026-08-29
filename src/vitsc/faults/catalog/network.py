@@ -1,7 +1,7 @@
 from random import Random
 
 from vitsc.env.base import Action, Query
-from vitsc.faults.base import PLACEHOLDER, Placement, ResolutionPath, UserSymptoms
+from vitsc.faults.base import FaultBase, PLACEHOLDER, Placement, ResolutionPath, UserSymptoms
 from vitsc.faults.registry import register
 from vitsc.world.models import World
 
@@ -14,7 +14,7 @@ def _workstations(world: World) -> list[Placement]:
     ]
 
 
-class StaticDnsMisconfig:
+class StaticDnsMisconfig(FaultBase):
     id = "net.static_dns_misconfig"
     domain = "network"
     difficulty = 2
@@ -62,7 +62,7 @@ class StaticDnsMisconfig:
         ]
 
 
-class NoDhcpLease:
+class NoDhcpLease(FaultBase):
     id = "net.no_dhcp_lease"
     domain = "network"
     difficulty = 2
