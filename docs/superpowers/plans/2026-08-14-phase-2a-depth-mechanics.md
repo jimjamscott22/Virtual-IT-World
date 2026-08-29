@@ -1149,7 +1149,7 @@ git add -A && git commit -m "feat(session): add a simulated tier-2 with accept a
 - Consumes: Task 8's `review_escalation`, `escalate`, `reopen`, `accept_escalation`.
 - Produces: `GET /ticket/{id}/escalate`, `POST /ticket/{id}/escalate`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/test_web_escalate.py`:
 
@@ -1213,12 +1213,12 @@ def test_the_bounce_text_does_not_name_the_cause(client):
         assert term.strip().lower() not in r.text.lower()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/test_web_escalate.py -v`
 Expected: FAIL — 404, no escalate route.
 
-- [ ] **Step 3: Implement the route**
+- [x] **Step 3: Implement the route**
 
 `web/routes/escalate.py`: `GET` renders the note form (with a reminder of what a usable handoff contains). `POST` calls `ticket.escalate(note, at=world.clock)`, then `review_escalation`. On accept: `accept_escalation`, grade, build the after-action, `store.save_closed`, render `_afteraction.html` — the same tail as `close.py`, so factor that shared sequence into one helper rather than duplicating it. On bounce: `ticket.reopen(response.text)` and render `_tier2.html` inside the ticket pane. Guard `TicketState.CLOSED` with 409, matching `close_ticket`.
 
@@ -1226,12 +1226,12 @@ Register the router in `app.py`. Add an "Escalate" control to `_ticket.html` bes
 
 `afteraction.py`: add `tier2: str` carrying the outcome, and extend the verdict chain — a bounced-then-fixed ticket reads "You tried to hand this off; it was yours. You did fix it after."
 
-- [ ] **Step 4: Run the suite**
+- [x] **Step 4: Run the suite**
 
 Run: `uv run pytest -v`
 Expected: all green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(web): add the tier-2 escalation flow"

@@ -24,11 +24,19 @@
 
   <div id="tools" hx-get="/ticket/{{ ticket.id }}/tools" hx-trigger="load"></div>
   {% include "_chat.html" %}
-  <form id="close" hx-post="/ticket/{{ ticket.id }}/close" hx-target="#detail" hx-swap="innerHTML">
-    <select name="disposition">
-      <option value="resolved">Resolved</option>
-      <option value="escalated">Escalated</option>
-    </select>
-    <button type="submit">Close ticket</button>
-  </form>
+
+  <div id="escalate-form"></div>
+  <div class="ticket-actions">
+    <button type="button" hx-get="/ticket/{{ ticket.id }}/escalate"
+            hx-target="#escalate-form" hx-swap="innerHTML">
+      Escalate
+    </button>
+    <form id="close" hx-post="/ticket/{{ ticket.id }}/close" hx-target="#detail" hx-swap="innerHTML">
+      <select name="disposition">
+        <option value="resolved">Resolved</option>
+        <option value="escalated">Escalated</option>
+      </select>
+      <button type="submit">Close ticket</button>
+    </form>
+  </div>
 </article>

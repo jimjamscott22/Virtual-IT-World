@@ -10,18 +10,18 @@ from vitsc.web.routes.queue import _session, _ticket_or_404
 router = APIRouter()
 
 
-@router.post("/ticket/{ticket_id}/close", response_class=HTMLResponse)
-def close_ticket(request: Request, ticket_id: int, disposition: str = Form(...)):
+def render_after_action(request: Request, session, ticket) -> HTMLResponse:
+    """The shared tail once a ticket lands in a terminal, closed state:
+    grade it, build the report, persist it, render it.
+
+    Shared between `close_ticket` (a direct resolve/escalate) and
+    `escalate.py`'s accept path (a tier-2-approved escalation) — both end the
+    same way, so this exists exactly once.
+    """
     from vitsc.web.app import templates
-    session = _session(request)
-    ticket = _ticket_or_404(request, ticket_id)
-    if ticket.state is TicketState.CLOSED:
-        raise HTTPException(status_code=409, detail="Ticket is already closed")
 
     fault = get_fault(ticket.fault_id)
-    ticket.tool_calls = list(session.log_for(ticket_id).calls)
-    ticket.close(Disposition(disposition), at=session.env.world.clock)
-
+    ticket.tool_calls = list(session.log_for(ticket.id).calls)
     siblings = (
         [t for t in session.queue.tickets if t.cascade_id == ticket.cascade_id]
         if ticket.cascade_id is not None
@@ -35,6 +35,17 @@ def close_ticket(request: Request, ticket_id: int, disposition: str = Form(...))
         request, "_afteraction.html",
         {"ticket": ticket, "grade": grade, "report": report},
     )
+
+
+@router.post("/ticket/{ticket_id}/close", response_class=HTMLResponse)
+def close_ticket(request: Request, ticket_id: int, disposition: str = Form(...)):
+    session = _session(request)
+    ticket = _ticket_or_404(request, ticket_id)
+    if ticket.state is TicketState.CLOSED:
+        raise HTTPException(status_code=409, detail="Ticket is already closed")
+
+    ticket.close(Disposition(disposition), at=session.env.world.clock)
+    return render_after_action(request, session, ticket)
 
 
 @router.get("/history", response_class=HTMLResponse)

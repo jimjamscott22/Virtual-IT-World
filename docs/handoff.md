@@ -1,6 +1,6 @@
 # Phase 2a handoff
 
-Written at the end of the session that landed Task 8. Delete this file when
+Written at the end of the session that landed Task 9. Delete this file when
 Phase 2a is complete — it records *situational* state (branch, PR, what is
 half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
@@ -11,98 +11,99 @@ half-done), not architecture. Architecture lives in `CLAUDE.md`.
 | Branch | `claude/distractor-catalog-session-seeding-yufnrd` |
 | Pull request | [#5](https://github.com/jimjamscott22/Virtual-IT-World/pull/5) — **open, draft, not merged** |
 | Base | `main` (Tasks 1–3 already merged via #4) |
-| Tests | 514 passing, 0 xfailed |
+| Tests | 521 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
 
 ## What landed this session
 
-**Task 7** (the reference cascade fault) — see the previous handoff's
-content, now folded into `CLAUDE.md`/`AGENTS.md`'s Task 7 paragraph; PR #5
-already carried it.
+**Task 8** (the simulated tier-2) — see the previous handoff's content, now
+folded into `CLAUDE.md`/`AGENTS.md`'s Task 8 paragraph; PR #5 already
+carried it.
 
-**Task 8** from the plan (line 984) — **the simulated tier-2**:
+**Task 9** from the plan (line 1141) — **the tier-2 web flow**:
 
-- `session/ticket.py`: `TicketState.AWAITING_TIER2`;
-  `Ticket.escalation_note`/`tier2_bounces`; `escalate(note, at)` (moves to
-  `AWAITING_TIER2`, raises if already closed — does **not** close the
-  ticket, unlike a normal disposition); `reopen(text)` (appends a `tier2`
-  `ChatTurn`, increments `tier2_bounces`, back to `IN_PROGRESS`, clears
-  `disposition`); `accept_escalation(at)` (thin wrapper over
-  `close(Disposition.ESCALATED, at)`).
-- `persona/models.py`: `ChatTurn.speaker` widened to
-  `Literal["tech", "user", "tier2"]`. Nothing renders it yet — the
-  templates are Task 9's job.
-- `session/tier2.py` (new): `Tier2Response(accepted, text)` and
-  `review_escalation(ticket, fault, world)`. Judges **ownership before
-  evidence** — see the deviation-table row below for why the order
-  differs from the plan's own stated sequence. A fixable fault
-  (`escalation_is_correct = False`) is bounced unconditionally with a
-  deliberately generic "within your scope" message that never names the
-  fault's own diagnostic query (any AD-specific wording risks colliding
-  with that fault's `leak_terms`). A fault that belongs to tier-2 but
-  whose note names no concrete evidence (the placement target, or the
-  bound target of any `escalation_evidence`/`diagnostic_path` query) is
-  bounced with a "what did you find" message. Otherwise it's accepted,
-  quoting `fault.escalation_reason` back to the technician — a system
-  message to the technician, not persona output, so leak-term scrubbing
-  doesn't apply to it.
-- `faults/catalog/identity.py` / `endpoint.py`: populated
-  `escalation_reason` on the two escalate-correct faults
-  (`ad.offboarded_reactivation`, `endpoint.failing_disk`) — previously
-  `FaultBase`'s empty-string default.
-- `session/grading.py`: `Grade.escalation_quality`
-  (`"none"`/`"accepted"`/`"bounced"`, derived from `ticket.disposition`
-  and `ticket.tier2_bounces`). Deliberately never touches `correct` — a
-  ticket bounced and then correctly fixed anyway still grades correct;
-  only the after-action (Task 9) is where the wrong escalation itself
-  gets said.
-- `session/queue.py`: `SessionQueue.open_for(fault, at)` — opens a ticket
-  for a named fault at a named placement directly, bypassing the
-  scheduler. `open_cascade(fault)` is now a one-line call to it with the
-  fault's first placement, removing the duplicated bookkeeping the two
-  methods used to carry separately.
-- `tests/test_tier2.py` (new): the plan's eight tests plus one more
-  (`test_a_fixable_fault_is_bounced_even_with_a_well_evidenced_note`,
-  proving ownership really is checked first and not just coincidentally
-  passing) and a `pytest.raises`-based rewrite of the closed-ticket
-  escalation check. `tests/test_grading.py` gained three tests for
-  `escalation_quality`, including one that reproduces the "bounced then
-  fixed is still correct" guarantee directly.
-- One lint fix needed: `Ticket.reopen()`'s `self.chat.append(...)` tripped
-  the same pydantic-`default_factory` false positive `tools/base.py`'s
-  `ToolLog.record` already carries a documented `# pylint:
-  disable=no-member` for — same fix, same comment shape.
-- Manually verified both paths end to end against the real fault catalog
-  (not just the unit tests): a fixable fault escalated with a vague note,
-  bounced, then fixed directly by the technician
-  (`escalation_quality="bounced"`, `grade.correct=True`); and an
-  escalate-only fault escalated with a well-evidenced note, accepted by
-  tier-2 (`escalation_quality="accepted"`, `grade.correct=True`).
+- `web/routes/escalate.py` (new): `GET`/`POST /ticket/{id}/escalate`. `GET`
+  renders `_escalate.html`'s note form. `POST` calls `ticket.escalate(note,
+  at)`, then `review_escalation()`; on accept, `accept_escalation()` +
+  `close.py`'s shared after-action tail; on bounce, `reopen()` + render
+  `_tier2.html`. Guards `TicketState.CLOSED` with 409, matching
+  `close_ticket`.
+- `web/routes/close.py`: extracted `render_after_action(request, session,
+  ticket)` from `close_ticket()` — grade, build the report, persist it,
+  render `_afteraction.html` — so both routes' terminal tail exists exactly
+  once. `close_ticket()` is now three lines: fetch, guard, close, call the
+  helper.
+- `web/templates/_escalate.html` (new): the note textarea + submit form.
+- `web/templates/_tier2.html` (new): a small "Tier-2 sent this back to you"
+  banner wrapping `{% include "_ticket.html" %}` — the technician gets the
+  whole live ticket pane back (priority form, tools, chat with the new
+  `tier2` turn visible, both action buttons), not a dead end.
+- `web/templates/_ticket.html`: an `Escalate` button beside `Close` that
+  `hx-get`s the form into a dedicated `#escalate-form` slot, so opening the
+  form doesn't blow away the rest of the pane.
+- `web/templates/_chat.html`: a `tier2` turn renders with a capitalized
+  "Tier-2:" label and its own `chat-tier2` CSS class — distinct from `user`
+  and `tech`, per the plan's requirement. No CSS rule added for it, matching
+  this codebase's existing precedent (`.warning`, `.ticket-cascade`, etc.
+  also have no hand-authored styling — the class name is the "distinct"
+  hook, not a color).
+- `web/app.py`: registered the new router.
+- `session/afteraction.py`: `AfterAction.tier2` (mirrors
+  `Grade.escalation_quality`) and a verdict-chain entry checked **before**
+  the `grade.correct` branch — `escalation_quality == "bounced" and
+  fault_cleared` reads "You tried to hand this off; it was yours. You did
+  fix it after." This has to come first: a bounced-then-fixed ticket is
+  already `correct=True` (Task 8's design), so the existing `grade.correct`
+  check would otherwise fire first and silently erase the fact that tier-2
+  sent it back.
+- `web/templates/_afteraction.html`: renders `report.tier2` as its own line
+  when `"accepted"` or `"bounced"` (skipped for `"none"`).
+- **The direct "Escalated" option in the close-ticket dropdown is
+  untouched.** It still bypasses tier-2 entirely and closes straight to
+  `Disposition.ESCALATED` — Task 9 adds a second, *reviewed* path to the
+  same disposition; it does not retire the unreviewed one. Nothing in the
+  plan asked for that removal, and the existing test suite
+  (`test_web_close.py`, `test_end_to_end.py`) depends on the dropdown path
+  still working exactly as before.
+- `tests/test_web_escalate.py` (new): the plan's five draft tests plus two
+  more (`test_an_accepted_escalation_persists_to_the_store`,
+  `test_a_bounce_shows_the_tier2_turn_in_chat`). One test needed real
+  correction, not just adaptation — see the deviation table entry below;
+  its naive whole-page substring check for leak terms produced false
+  positives against ordinary template markup ("already", `hx-trigger=
+  "load"`), so it now uses `persona/client.py:scrub()` against the tier-2
+  response text itself, the same technique `test_persona_binding.py`
+  already uses for the analogous prompt-leak problem.
+- Verified live, not just through `TestClient`: started the real app
+  (`uv run python -m vitsc`), opened `/events` with `curl -N` to let the
+  simulated clock actually advance and a real ticket arrive, then drove
+  `GET`/`POST /ticket/{id}/escalate` against the running server with plain
+  `curl` requests. Confirmed the bounce path end to end: the tier-2 nudge
+  appeared in chat labeled "Tier-2:", and the returned HTML was the full,
+  still-interactive ticket pane (priority form, tools, chat, both
+  buttons) rather than a dead end. The accept path is covered by
+  `test_web_escalate.py`'s own real FastAPI request path, which was not
+  additionally hand-verified live since the scheduler doesn't offer a way
+  to force a specific fault to arrive through the running app without
+  waiting on random draws.
 
-## Next: Task 9
+## Next: Task 10
 
-**The tier-2 web flow** — plan line 1141. Wires Task 8's mechanism into the
-app: `GET`/`POST /ticket/{id}/escalate`, a note form, rendering `_tier2.html`
-on a bounce and the shared after-action tail on an accept (factor that tail
-— grade, build after-action, `store.save_closed`, render `_afteraction.html`
-— into one helper shared with `close.py` rather than duplicating it). Also:
-
-- Register the new router in `web/app.py`.
-- Add an "Escalate" control to `_ticket.html` beside Close, and style
-  `tier2` chat turns distinctly in `_chat.html` — this is where Task 8's
-  now-unrendered third `ChatTurn.speaker` actually gets a template.
-- `afteraction.py` gains a `tier2: str` field and a verdict-chain addition:
-  a bounced-then-fixed ticket should read something like "You tried to
-  hand this off; it was yours. You did fix it after."
-- Guard `TicketState.CLOSED` with a 409 on the escalate route, matching
-  `close_ticket`'s existing behavior.
-
-The plan's own draft test for this task (`test_a_bounced_escalation_...`,
-`test_an_accepted_escalation_...`) calls `session.queue.open_for(...)`
-directly against a fault fetched via `get_fault(...)` at module scope in the
-test body — that import (`from vitsc.faults.registry import get_fault`) is
-missing from the plan's own listed imports for `tests/test_web_escalate.py`;
-add it when transcribing.
+**Knowledge base content and loader** — plan line 1242. A green-field task
+(no existing module to modify): `kb/models.py` (`Article`), `kb/loader.py`
+(`load_articles()`, `get_article(id)`, `search_articles(text)`), and at
+least 8 markdown articles under `src/vitsc/data/kb/` with YAML frontmatter
+(`id`, `title`, `domain`, `keywords`), each containing a `## Check` or
+`## Steps` section — procedural, not diagnostic. The harness-style test
+(`test_no_article_is_an_answer_key`) mechanically proves no article names a
+fault id or its `canonical_title`, the same "prove the mechanism, not just
+green tests" discipline the fault/distractor conformance harnesses already
+use. `fault.kb_articles` (added in `FaultBase`, Task 5) is currently `[]` on
+every fault except `print.server_spooler_stopped`
+(`["printing-nothing-prints"]`, Task 7) — `test_every_fault_kb_link_resolves`
+only checks links that exist, so this is the one fault this task's article
+set is required to cover; populating `kb_articles` on the rest is optional
+scope, not blocking.
 
 ## Conventions this codebase expects
 
@@ -122,14 +123,14 @@ Things that are easy to get wrong and are not obvious from the code alone.
    it, and the comment gets extended (not replaced) the next time it moves.
 4. **`tests/conftest.py` clears `VITSC_*` for every test.** Do not remove it.
 5. **Prove a new mechanism actually works, not just that pytest is green.**
-   This session did it with a standalone script exercising both the bounce
-   path and the accept path against the real catalog end to end. Whatever
+   This session did it by starting the real app and driving the bounce path
+   through `curl` against a live server, not just `TestClient`. Whatever
    you're adding, find the equivalent "prove it actually does the thing"
    check before moving on.
 6. **A change to `SessionQueue`'s RNG consumption can silently shift which
    fault a fixed `seed=N` deals**, in any test that builds a real
    `SessionQueue` or `AppSession`. Task 4's distractor seeding did this;
-   Tasks 5–8 did not touch the RNG path — but re-run the full suite and
+   Tasks 5–9 did not touch the RNG path — but re-run the full suite and
    read failures carefully rather than assuming either way whenever a
    scheduling-adjacent change lands.
 7. **A `Ticket | None` → `list[Ticket]` return-type change breaks
@@ -140,41 +141,38 @@ Things that are easy to get wrong and are not obvious from the code alone.
    (`while x(): pass`) or an explicit `== []` once you find them.
 8. **`ServiceState` (`world/models.py`) is a real `str, Enum`, not a bare
    string constant, and its values are mixed-case** (`"Running"`,
-   `"Stopped"`, not `"RUNNING"`/`"STOPPED"`). A fault or a test that compares
-   a service state against an all-caps string literal will silently never
-   match. Compare against `ServiceState.RUNNING` (etc.) or the exact stored
-   casing, not an assumed all-caps form.
+   `"Stopped"`, not `"RUNNING"`/`"STOPPED"`). Compare against
+   `ServiceState.RUNNING` (etc.), not an assumed all-caps form.
 9. **A fault whose `reporters()` returns a list (a cascade fault) breaks any
-   test that assumes `assigned_to` names the reporter.** Two tests broke
-   this way when Task 7 landed the first such fault. Prefer
+   test that assumes `assigned_to` names the reporter.** Prefer
    `session/queue.py:resolved_reporters(world, fault, placement)` over
-   hand-rolled `sam` derivation in any new or old test that needs "who gets
-   the ticket" for an arbitrary fault.
+   hand-rolled `sam` derivation.
 10. **`diagnostic_path()` and `canonical_resolutions()` receive only a
-    `Placement`, never `World`.** When a query needs a concrete value only
-    `World` can supply and no existing sentinel (`PLACEHOLDER`,
-    `PLACEHOLDER_MACHINE`, `PLACEHOLDER_GROUP`, `PLACEHOLDER_PRINTER`) fits,
-    a literal company-topology string is an accepted fallback —
-    `net.static_dns_misconfig` hardcodes `MER-FS-01`, and
-    `print.server_spooler_stopped` hardcodes `PRT-ACC-01` — not a new
-    sentinel invented per fault.
-11. **A message shown to the *technician* (tier-2's accept/bounce text, an
-    after-action verdict) is not subject to leak-term scrubbing — only
-    persona/user-facing text is.** But a *bounce* message for a fixable
-    fault is the one technician-facing exception: naming the fault's own
-    diagnostic vocabulary there hands over the answer instead of a nudge,
-    so keep that one message generic across the whole catalog rather than
-    fault-specific.
+    `Placement`, never `World`.** A literal company-topology string
+    (`MER-FS-01`, `PRT-ACC-01`) is an accepted fallback when no sentinel
+    fits — not a new sentinel invented per fault.
+11. **A message shown to the *technician* is not subject to leak-term
+    scrubbing — only persona/user-facing text is.** The one exception: a
+    *bounce* message for a fixable fault must stay generic across the whole
+    catalog, since naming that fault's own diagnostic vocabulary there hands
+    over the answer instead of a nudge.
 12. **The plan's own worked examples can contradict its prose description
-    of an algorithm's step order.** `session/tier2.py:review_escalation`'s
-    docstring order was reordered to match what the plan's own test cases
-    actually required — see the deviation table. When a plan's prose and
-    its example code disagree, trust the examples (they're testable) and
-    record the discrepancy rather than silently picking one.
+    of an algorithm's step order, or a test's own naive assertion can be
+    wrong even when transcribed faithfully.** `tier2.py`'s ownership-first
+    ordering (Task 8) and this session's `scrub()`-based leak check are both
+    cases of trusting the actual behavioral requirement (what a worked
+    example needs to pass, what the *scrub* convention already established
+    elsewhere) over a plan's literal prose or literal draft test code.
+13. **A raw substring check for a leak term against a *whole rendered page*
+    is unreliable — check the specific generated text instead.** A bounce
+    or reply's own text is small and controlled; the page around it is not,
+    and ordinary words ("already", "load") accidentally contain short
+    stripped terms like `"ad"`. Use `persona/client.py:scrub()` against the
+    generated text (a chat turn, a persona reply), not `in page_html`.
 
 ## Open threads
 
-Not blocking Task 9, but real, and none of them are recorded anywhere else.
+Not blocking Task 10, but real, and none of them are recorded anywhere else.
 
 - **`ipconfig` rendering has no test coverage.** `env/simulated.py`'s
   `_read_net_ipconfig` builds `ipconfig`-shaped output whose dotted-leader
@@ -182,19 +180,26 @@ Not blocking Task 9, but real, and none of them are recorded anywhere else.
 - **The LM Studio path is still unverified.** No environment used so far has
   network access to a local LM Studio instance. `docs/verifying-lmstudio.md`
   is the manual procedure; a green pipeline does **not** stand in for it.
-- **`Ticket.escalate()`'s `at` parameter is unused.** It exists for
-  signature symmetry with `close(disposition, at)`, since Task 9's route
-  will call it as `ticket.escalate(note, at=world.clock)` alongside other
-  `at`-taking calls. Nothing stores it (there's no `escalated_at` field).
-  If a future task wants escalation timing, that's where it would go.
+- **Two ways now reach `Disposition.ESCALATED`**: the reviewed
+  `/ticket/{id}/escalate` flow (Task 9), and the unreviewed "Escalated"
+  option still sitting in the close-ticket dropdown (pre-existing, untouched
+  — see the Task 9 summary above). Whether the dropdown option should
+  eventually be removed now that a reviewed path exists is a real design
+  question nothing in the plan resolves; flagging it rather than deciding it
+  unilaterally.
+- **No CSS was added for `.chat-tier2`, `.tier2-bounce`, `.tier2-outcome`,
+  `.escalate-form`, or `.ticket-actions`.** This matches existing precedent
+  (`.warning`, `.ticket-cascade`, `.cascade-note` are also unstyled), but if
+  a future task does a styling pass, these are exactly the classes it would
+  want to pick up.
 
 ## Resuming
 
 ```bash
 git checkout claude/distractor-catalog-session-seeding-yufnrd
 uv sync
-uv run pytest          # expect 514 passed, 0 xfailed
+uv run pytest          # expect 521 passed, 0 xfailed
 ```
 
-Then read Task 9 in the plan (line 1141) and continue. `CLAUDE.md` is the
+Then read Task 10 in the plan (line 1242) and continue. `CLAUDE.md` is the
 architectural brief and is current as of this handoff.

@@ -24,6 +24,9 @@ class AfterAction(BaseModel):
     within_sla: bool
     verdict: str
     cascade_note: str = ""
+    # Mirrors `Grade.escalation_quality` ("none"/"accepted"/"bounced") so a
+    # template can render the escalation outcome without reaching into grade.
+    tier2: str = "none"
 
 
 def build_after_action(
@@ -52,7 +55,12 @@ def build_after_action(
     # message off it accuses someone who closed a ticket as resolved of having
     # escalated it.
     escalated = ticket.disposition is Disposition.ESCALATED
-    if grade.correct:
+    if grade.escalation_quality == "bounced" and grade.fault_cleared:
+        # Checked before `grade.correct`, which this combination already
+        # satisfies — the ticket ended up fixed and disposed correctly, but
+        # that would silently erase the fact that tier-2 sent it back first.
+        verdict = "You tried to hand this off; it was yours. You did fix it after."
+    elif grade.correct:
         verdict = "Resolved correctly."
     elif fault.escalation_is_correct and not escalated:
         verdict = "This one was not yours to fix — it needed escalation."
@@ -90,4 +98,5 @@ def build_after_action(
         within_sla=grade.within_sla,
         verdict=verdict,
         cascade_note=cascade_note,
+        tier2=grade.escalation_quality,
     )
