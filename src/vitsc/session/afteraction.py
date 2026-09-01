@@ -7,7 +7,9 @@ have found it, and says plainly what went wrong.
 
 from pydantic import BaseModel, Field
 
-from vitsc.faults.base import Fault, bind_query
+from vitsc.distractors.registry import get_distractor
+from vitsc.faults.base import Fault, Placement, bind_query
+from vitsc.kb.loader import get_article
 from vitsc.session.grading import Grade
 from vitsc.session.ticket import Disposition, Ticket
 from vitsc.world.models import World
@@ -27,6 +29,31 @@ class AfterAction(BaseModel):
     # Mirrors `Grade.escalation_quality` ("none"/"accepted"/"bounced") so a
     # template can render the escalation outcome without reaching into grade.
     tier2: str = "none"
+    # HTML fragments (article links, plain-text distractor notes) built here
+    # from trusted local content only — never from persona/user text — which
+    # is what makes rendering them `| safe` in the template acceptable.
+    kb_suggestions: list[str] = Field(default_factory=list)
+
+
+def _kb_suggestions(
+    ticket: Ticket, fault: Fault, distractors: list[tuple[str, Placement]]
+) -> list[str]:
+    read_ids = {
+        call.args.get("id")
+        for call in ticket.tool_calls
+        if call.tool == "kb" and call.command == "read" and call.ok
+    }
+    lines = []
+    for article_id in fault.kb_articles:
+        article = get_article(article_id)
+        if article is None:
+            continue
+        link = f'<a href="/kb/{article.id}">{article.title}</a>'
+        status = "already read" if article_id in read_ids else "would have helped"
+        lines.append(f"{link} — {status}.")
+    for distractor_id, _ in distractors:
+        lines.append(get_distractor(distractor_id).note)
+    return lines
 
 
 def build_after_action(
@@ -34,7 +61,9 @@ def build_after_action(
     fault: Fault,
     grade: Grade,
     world: World,
+    *,
     siblings: list[Ticket] | None = None,
+    distractors: list[tuple[str, Placement]] | None = None,
 ) -> AfterAction:
     path = [
         f"{q.kind} {q.target}".strip()
@@ -99,4 +128,5 @@ def build_after_action(
         verdict=verdict,
         cascade_note=cascade_note,
         tier2=grade.escalation_quality,
+        kb_suggestions=_kb_suggestions(ticket, fault, distractors or []),
     )

@@ -99,8 +99,10 @@ def test_powershell_rejects_unknown_cmdlet(env, log):
     assert call.ok is False and "not recognized" in call.rendered.lower()
 
 
-def test_all_six_tools_are_registered():
-    assert {t.name for t in all_tools()} == {"ad", "net", "remote", "events", "print", "ps"}
+def test_all_seven_tools_are_registered():
+    assert {t.name for t in all_tools()} == {
+        "ad", "net", "remote", "events", "print", "ps", "kb",
+    }
     assert get_tool("net").name == "net"
 
 

@@ -31,6 +31,9 @@ class Grade(BaseModel):
     # "bounced": escalated at least once but closed some other way — sent
     # somewhere it didn't belong, then kept and (maybe) fixed anyway.
     escalation_quality: str = "none"
+    # A diligence signal only — never a correctness gate. Whether the
+    # technician consulted the KB has no bearing on `correct`.
+    kb_consulted: bool = False
 
 
 def questions_before_first_mutation(ticket: Ticket) -> int:
@@ -123,4 +126,5 @@ def grade_ticket(
         or ticket.user_priority == ticket.system_priority,
         duplicate_mutations=duplicate_mutations(ticket, siblings),
         escalation_quality=escalation_quality,
+        kb_consulted=any(call.tool == "kb" for call in ticket.tool_calls),
     )

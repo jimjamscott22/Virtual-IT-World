@@ -28,7 +28,10 @@ def render_after_action(request: Request, session, ticket) -> HTMLResponse:
         else None
     )
     grade = grade_ticket(ticket, fault, session.env, session.queue.baseline, siblings=siblings)
-    report = build_after_action(ticket, fault, grade, session.env.world, siblings=siblings)
+    report = build_after_action(
+        ticket, fault, grade, session.env.world,
+        siblings=siblings, distractors=session.queue.distractors,
+    )
     session.store.save_closed(ticket, grade, report)
 
     return templates.TemplateResponse(

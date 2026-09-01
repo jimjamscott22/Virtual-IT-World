@@ -44,6 +44,15 @@
   <p class="cascade-note">{{ report.cascade_note }}</p>
   {% endif %}
 
+  {% if report.kb_suggestions %}
+  <h3>Knowledge base</h3>
+  <ul class="kb-suggestions">
+    {% for line in report.kb_suggestions %}
+    <li>{{ line | safe }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
   {% if report.tier2 == "accepted" %}
   <p class="tier2-outcome">This was escalated, and tier-2 accepted it.</p>
   {% elif report.tier2 == "bounced" %}

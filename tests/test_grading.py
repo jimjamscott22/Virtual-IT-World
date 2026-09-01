@@ -381,6 +381,63 @@ def test_escalation_quality_is_bounced_after_a_bounce_and_a_direct_fix():
     assert grade.correct is True
 
 
+def test_kb_consulted_is_true_when_the_kb_tool_was_used():
+    from vitsc.tools.kb import KnowledgeBase
+
+    world, fault, placement, env, baseline, ticket = setup()
+    log = ToolLog()
+    KnowledgeBase().invoke(env, log, "search", {"text": "sign in"})
+    ADConsole().invoke(env, log, "unlock", {"sam": placement.key})
+    ticket.tool_calls = log.calls
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    assert grade_ticket(ticket, fault, env, baseline).kb_consulted is True
+
+
+def test_kb_consulted_is_false_without_a_kb_call():
+    world, fault, placement, env, baseline, ticket = setup()
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    assert grade_ticket(ticket, fault, env, baseline).kb_consulted is False
+
+
+def test_after_action_lists_a_linked_article_as_not_yet_read():
+    world, fault, placement, env, baseline, ticket = setup()  # ad.account_locked
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    grade = grade_ticket(ticket, fault, env, baseline)
+    report = build_after_action(ticket, fault, grade, env.world)
+    assert any(
+        "identity-cannot-sign-in" in line and "would have helped" in line
+        for line in report.kb_suggestions
+    )
+
+
+def test_after_action_marks_an_article_the_technician_actually_read():
+    from vitsc.tools.kb import KnowledgeBase
+
+    world, fault, placement, env, baseline, ticket = setup()
+    log = ToolLog()
+    KnowledgeBase().invoke(env, log, "read", {"id": "identity-cannot-sign-in"})
+    ADConsole().invoke(env, log, "unlock", {"sam": placement.key})
+    ticket.tool_calls = log.calls
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    grade = grade_ticket(ticket, fault, env, baseline)
+    report = build_after_action(ticket, fault, grade, env.world)
+    assert any("already read" in line for line in report.kb_suggestions)
+
+
+def test_after_action_names_a_seeded_distractor():
+    from vitsc.faults.base import Placement as PlacementModel
+
+    world, fault, placement, env, baseline, ticket = setup()
+    env.execute(Action(kind="ad.unlock", target=placement.key))
+    ticket.close(Disposition.RESOLVED, at=NOW + timedelta(minutes=5))
+    grade = grade_ticket(ticket, fault, env, baseline)
+    distractors = [("service.wsearch_stopped", PlacementModel(kind="machine", key="MER-WS-001"))]
+    report = build_after_action(ticket, fault, grade, env.world, distractors=distractors)
+    assert any("Windows Search" in line for line in report.kb_suggestions)
+
+
 def test_every_fault_produces_a_report_with_a_bound_shortest_path():
     """`{placement}`-style sentinels must all be resolved by the time a
     technician reads the report."""
