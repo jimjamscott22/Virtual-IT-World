@@ -8,6 +8,8 @@ from vitsc.world.models import (
     ADGroup,
     ADUser,
     Machine,
+    Mailbox,
+    MailSystem,
     Network,
     Organization,
     Printer,
@@ -100,11 +102,26 @@ def load_world(path: Path | None = None) -> World:
             if share:
                 machine.mapped_drives[share.drive_letter] = share.unc
 
+    mail_cfg = raw["mail"]
+    mail = MailSystem(
+        server=mail_cfg["server"],
+        mailboxes={
+            sam: Mailbox(
+                owner_sam=sam,
+                primary_smtp=user.upn,
+                server=mail_cfg["server"],
+                quota_mb=float(mail_cfg["quota_mb"]),
+            )
+            for sam, user in users.items()
+        },
+    )
+
     return World(
         org=Organization(domain=raw["domain"], users=users, groups=groups),
         machines=machines,
         printers=printers,
         shares=shares,
         network=Network(**net),
+        mail=mail,
         clock=clock,
     )

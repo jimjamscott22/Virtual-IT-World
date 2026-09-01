@@ -38,6 +38,11 @@ servers:
   - {hostname: MER-DC-01,  ip: 10.20.10.5, role: dc}
   - {hostname: MER-FS-01,  ip: 10.20.10.6, role: fileserver}
   - {hostname: MER-PRT-01, ip: 10.20.10.7, role: printserver}
+  - {hostname: MER-MB-01,  ip: 10.20.10.8, role: mailserver}
+
+mail:
+  server: MER-MB-01
+  quota_mb: 51200
 
 workstations:
   - {hostname: MER-WS-001, assigned_to: m.alvarez,   ip: 10.20.10.41, printers: [PRT-ACC-01]}

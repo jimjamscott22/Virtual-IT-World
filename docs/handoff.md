@@ -1,18 +1,24 @@
 # Phase 2a handoff
 
-Written at the end of the session that landed Task 11. Delete this file when
-Phase 2a is complete — it records *situational* state (branch, PR, what is
-half-done), not architecture. Architecture lives in `CLAUDE.md`.
+Written at the end of the session that landed Tasks 11–12. Delete this file
+when Phase 2a is complete — it records *situational* state (branch, PR, what
+is half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
 ## Where things stand
 
 | | |
 | --- | --- |
 | Branch | `claude/next-task-plan-y1g5ti` |
-| Pull request | not yet opened this session |
+| Pull request | [#7](https://github.com/jimjamscott22/Virtual-IT-World/pull/7), draft, both tasks in one PR by design (see below) |
 | Base | `main` (Tasks 1–10 merged via [#6](https://github.com/jimjamscott22/Virtual-IT-World/pull/6)) |
-| Tests | 541 passing, 0 xfailed |
+| Tests | 544 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
+
+PR #7 was opened after Task 11 alone; Task 12 was deliberately stacked onto
+the same branch/PR rather than split into a second one — a user call made
+mid-session, not a plan requirement. Update the PR title/description to cover
+both tasks before merging, and check whether CI is still green and no review
+comments landed on the Task-11-only version before pushing Task 12's commit.
 
 ## What landed this session
 
@@ -62,24 +68,56 @@ links**:
   ticket to confirm the after-action's "Knowledge base" section named the
   article as already-read and quoted a seeded distractor's note.
 
+**Task 12** from the plan (line 1454) — **the mail world model**:
+
+- `src/vitsc/world/models.py`: `MailRule(name, forward_to, delete_after,
+  created_by)`, `Mailbox(owner_sam, primary_smtp, server, quota_mb, used_mb,
+  rules, forwarding_smtp, litigation_hold)`, `MailSystem(server,
+  transport_state, queue_depth, mailboxes)`. `World` gains a required
+  `mail: MailSystem` field and `mailbox_for(sam) -> Mailbox | None`.
+- `src/vitsc/data/company.yaml`: `MER-MB-01` (`role: mailserver`, ip
+  `10.20.10.8`) added under `servers` — no `seed.py` change was needed to
+  turn it into a `Machine`, since the existing servers loop already builds
+  one generically from any `hostname`/`ip` pair (`role` is metadata nothing
+  reads). A small `mail:` block (`server: MER-MB-01`, `quota_mb: 51200`)
+  gives the domain default.
+- `src/vitsc/world/seed.py`: `load_world()` derives one `Mailbox` per user
+  from their already-computed `upn`, rather than hand-authoring twelve
+  near-identical rows in `company.yaml` — the same reasoning that already
+  keeps `company.yaml` as the one hand-authored file. A new user added there
+  automatically gets a mailbox; there's no separate list to forget.
+- Deliberately **not** added: any mail invariant (a deleted mailbox, a quota
+  dropped below usage). Every invariant is a new way for a fault to accuse
+  itself, and there's nothing to test one against until 2b's mail faults
+  exist — adding it now would be untested by construction.
+- `tests/test_world_seed.py`: the plan's three tests verbatim.
+- Verified live: `uv run python3 -c "..."` against a fresh `load_world()`
+  confirmed all 12 users have a mailbox ending `@meridian.local`, the mail
+  system reports `MER-MB-01`/`Running`/queue depth 0/12 mailboxes,
+  `MER-MB-01` is a normal `Machine` with `assigned_to is None`, and
+  `mailbox_for("nope")` returns `None` rather than raising.
+- `mail-cannot-send-or-receive.md` (shipped inert in Task 10's KB) still
+  links to no fault — Task 13 (mail query/action kinds) and the mail fault
+  catalog after it are what make this load-bearing.
+
 ### Previous sessions (superseded detail)
 
 Tasks 1–10 (fault-aware model persona through the KB content/loader) all
 landed in earlier sessions and are described in `CLAUDE.md`/`AGENTS.md`'s own
 per-task paragraphs, the current, non-duplicated record.
 
-## Next: Task 12
+## Next: Task 13
 
-**The mail world model** — plan line 1454. Adds `Mailbox`, `MailRule`,
-`MailSystem` to `world/models.py`; `World.mail` and `World.mailbox_for(sam)`;
-a new machine (`MER-MB-01`) and per-user mailboxes seeded in
-`world/seed.py`/`company.yaml`. No fault or tool consumes it yet — Task 13
-(the mail fault catalog, per the plan) is what makes it load-bearing, and
-`mail-cannot-send-or-receive.md` (already shipped in Task 10's KB, currently
-unlinked from any fault) is waiting for exactly that. Extend
-`tests/test_world_seed.py` with the plan's three tests
-(`test_every_user_has_a_mailbox`, `test_mail_is_healthy_at_rest`,
-`test_the_mail_server_is_a_machine_like_any_other`).
+**Mail query and action kinds** — plan line 1546. Consumes Task 12's models.
+Adds `_read_mail_mailbox`/`_read_mail_rules`/`_read_mail_queue` and
+`_do_mail_set_quota`/`_do_mail_archive`/`_do_mail_remove_rule`/
+`_do_mail_restart_transport` to `env/simulated.py`'s `getattr` dispatch (dots
+become underscores, same as every other kind). `mail.archive` must reduce
+`used_mb` to a fixed fraction of quota rather than to a remembered original —
+`SimulatedEnvironment` is constructed *after* `apply()`, so nothing cached at
+`__init__` reflects pre-fault state (the same gotcha `CLAUDE.md` already
+documents for `machine.renew_dhcp`). Extend `tests/test_simulated_env.py`
+with the plan's six tests.
 
 ## Conventions this codebase expects
 
@@ -106,7 +144,7 @@ Things that are easy to get wrong and are not obvious from the code alone.
 6. **A change to `SessionQueue`'s RNG consumption can silently shift which
    fault a fixed `seed=N` deals**, in any test that builds a real
    `SessionQueue` or `AppSession`. Task 4's distractor seeding did this;
-   Tasks 5–11 did not touch the RNG path — but re-run the full suite and
+   Tasks 5–12 did not touch the RNG path — but re-run the full suite and
    read failures carefully rather than assuming either way whenever a
    scheduling-adjacent change lands.
 7. **A `Ticket | None` → `list[Ticket]` return-type change breaks
@@ -152,10 +190,16 @@ Things that are easy to get wrong and are not obvious from the code alone.
     it is built in `afteraction.py` from static local content
     (`fault.kb_articles`, `Distractor.note`) that never touches user or
     model input. Check the data's provenance before copying either pattern.
+15. **A `World` field with no default (`mail: MailSystem`) makes every direct
+    `World(...)` construction outside `world/seed.py` a build error until
+    updated.** None exist today — every test builds a world via `load_world()`
+    — but the next task that adds a second required field should grep for
+    `World(` call sites first rather than assume `load_world()` is the only
+    constructor in play.
 
 ## Open threads
 
-Not blocking Task 12, but real, and none of them are recorded anywhere else.
+Not blocking Task 13, but real, and none of them are recorded anywhere else.
 
 - **`ipconfig` rendering has no test coverage.** `env/simulated.py`'s
   `_read_net_ipconfig` builds `ipconfig`-shaped output whose dotted-leader
@@ -184,10 +228,10 @@ Not blocking Task 12, but real, and none of them are recorded anywhere else.
 ## Resuming
 
 ```bash
-git checkout main   # Tasks 1-11 are all here once this session's PR merges
+git checkout main   # Tasks 1-12 are all here once PR #7 merges
 uv sync
-uv run pytest          # expect 541 passed, 0 xfailed
+uv run pytest          # expect 544 passed, 0 xfailed
 ```
 
-Then read Task 12 in the plan (line 1454) and continue. `CLAUDE.md` is the
+Then read Task 13 in the plan (line 1546) and continue. `CLAUDE.md` is the
 architectural brief and is current as of this handoff.

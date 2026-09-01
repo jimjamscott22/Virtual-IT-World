@@ -33,3 +33,27 @@ def test_workstations_map_their_department_share():
     machine = world.machines["MER-WS-001"]
     assert machine.mapped_drives["S:"] == r"\\MER-FS-01\Accounting"
     assert machine.printer_drivers["PRT-ACC-01"] == "HP LaserJet M507 PCL-6"
+
+
+def test_every_user_has_a_mailbox():
+    world = load_world()
+    for sam in world.org.users:
+        mailbox = world.mailbox_for(sam)
+        assert mailbox is not None
+        assert mailbox.primary_smtp.endswith("@meridian.local")
+
+
+def test_mail_is_healthy_at_rest():
+    world = load_world()
+    assert world.mail.transport_state.value == "Running"
+    assert world.mail.queue_depth < 10
+    for mailbox in world.mail.mailboxes.values():
+        assert mailbox.used_mb < mailbox.quota_mb
+        assert mailbox.forwarding_smtp is None
+        assert mailbox.rules == []
+
+
+def test_the_mail_server_is_a_machine_like_any_other():
+    world = load_world()
+    assert "MER-MB-01" in world.machines
+    assert world.machines["MER-MB-01"].assigned_to is None

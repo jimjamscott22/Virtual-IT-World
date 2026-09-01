@@ -100,12 +100,38 @@ class Network(BaseModel):
     external_probe: str = "8.8.8.8"
 
 
+class MailRule(BaseModel):
+    name: str
+    forward_to: str | None = None
+    delete_after: bool = False
+    created_by: str | None = None  # who set it, for an escalation's evidence
+
+
+class Mailbox(BaseModel):
+    owner_sam: str
+    primary_smtp: str
+    server: str
+    quota_mb: float = 51200.0
+    used_mb: float = 4096.0
+    rules: list[MailRule] = Field(default_factory=list)
+    forwarding_smtp: str | None = None
+    litigation_hold: bool = False
+
+
+class MailSystem(BaseModel):
+    server: str
+    transport_state: ServiceState = ServiceState.RUNNING
+    queue_depth: int = 0
+    mailboxes: dict[str, Mailbox] = Field(default_factory=dict)
+
+
 class World(BaseModel):
     org: Organization
     machines: dict[str, Machine]
     printers: dict[str, Printer]
     shares: dict[str, Share]
     network: Network
+    mail: MailSystem
     clock: datetime
 
     def machine_for(self, sam: str) -> Machine | None:
@@ -116,3 +142,6 @@ class World(BaseModel):
 
     def groups_of(self, sam: str) -> list[str]:
         return [g.name for g in self.org.groups.values() if sam in g.members]
+
+    def mailbox_for(self, sam: str) -> Mailbox | None:
+        return self.mail.mailboxes.get(sam)
