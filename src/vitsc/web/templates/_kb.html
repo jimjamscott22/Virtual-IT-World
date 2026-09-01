@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block body %}
+<header class="topbar">
+  <h1>Knowledge base</h1>
+  <p><a href="/">Back to queue</a></p>
+</header>
+<main class="kb-page">
+  {% if article %}
+  <article class="kb-article">
+    <h2>{{ article.title }}</h2>
+    <pre class="kb-body">{{ article.body }}</pre>
+  </article>
+  {% else %}
+  <form method="get" action="/kb" class="kb-search">
+    <input type="text" name="q" value="{{ query }}" placeholder="Search the knowledge base">
+    <button type="submit">Search</button>
+  </form>
+  <ul class="kb-results">
+    {% for a in articles %}
+    <li><a href="/kb/{{ a.id }}">{{ a.title }}</a></li>
+    {% else %}
+    <li class="empty-state">No matching articles.</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</main>
+{% endblock %}

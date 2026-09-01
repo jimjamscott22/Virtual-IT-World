@@ -1,94 +1,123 @@
 # Phase 2a handoff
 
-Written at the end of the session that landed Task 10. Delete this file when
-Phase 2a is complete — it records *situational* state (branch, PR, what is
-half-done), not architecture. Architecture lives in `CLAUDE.md`.
+Written at the end of the session that landed Tasks 11–12. Delete this file
+when Phase 2a is complete — it records *situational* state (branch, PR, what
+is half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
 ## Where things stand
 
 | | |
 | --- | --- |
-| Branch | `claude/next-task-docs-lt883z` |
-| Pull request | not yet opened this session |
-| Base | `main` (Tasks 1–9 merged via [#5](https://github.com/jimjamscott22/Virtual-IT-World/pull/5) — squash-merged as one PR covering distractors through the tier-2 web flow, despite the PR title naming only Task 4) |
-| Tests | 526 passing, 0 xfailed |
+| Branch | `claude/next-task-plan-y1g5ti` |
+| Pull request | [#7](https://github.com/jimjamscott22/Virtual-IT-World/pull/7), draft, both tasks in one PR by design (see below) |
+| Base | `main` (Tasks 1–10 merged via [#6](https://github.com/jimjamscott22/Virtual-IT-World/pull/6)) |
+| Tests | 544 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
+
+PR #7 was opened after Task 11 alone; Task 12 was deliberately stacked onto
+the same branch/PR rather than split into a second one — a user call made
+mid-session, not a plan requirement. Update the PR title/description to cover
+both tasks before merging, and check whether CI is still green and no review
+comments landed on the Task-11-only version before pushing Task 12's commit.
 
 ## What landed this session
 
-**Task 10** from the plan (line 1242) — **knowledge base content and
-loader**:
+**Task 11** from the plan (line 1367) — **the KB tool and after-action
+links**:
 
-- `src/vitsc/kb/models.py` (new): `Article(id, title, domain, keywords,
-  body)`. `domain` is its own `Literal` including `"general"`, a superset of
-  `Fault.Domain` rather than a reuse of it — a KB page can be general triage
-  advice with no single fault domain to pin it to.
-- `src/vitsc/kb/loader.py` (new): `load_articles()` reads
-  `src/vitsc/data/kb/*.md` via `importlib.resources.files("vitsc.data").
-  joinpath("kb")` (the same access pattern `world/seed.py` uses for
-  `company.yaml`), splits each file's YAML frontmatter from its body, and
-  caches the result with `lru_cache`. `get_article(id)` and
-  `search_articles(text)` (title/keyword/id substring scoring, ranked, `[]`
-  on no hit) both read through that cache.
-- `src/vitsc/data/kb/*.md` (new, 8 files): all original content, each with a
-  `## Check` or `## Steps` section — procedure and Meridian's own
-  conventions, never "symptom X means cause Y":
-  `general-triage-first-questions`, `general-meridian-estate`,
-  `identity-cannot-sign-in`, `identity-missing-drive`,
-  `network-no-internet`, `printing-nothing-prints` (the plan's own worked
-  example, used verbatim), `endpoint-slow-or-failing`,
-  `mail-cannot-send-or-receive`.
-- `tests/test_kb.py` (new): the plan's five tests, with one deliberate
-  deviation — see the deviation table entry below. `test_no_article_is_an_
-  answer_key` mechanically proves no article's title-plus-body contains a
-  fault's `id` or its `canonical_title`.
-- `kb_articles` populated on the eight faults (across identity/network/
-  endpoint/printing) that have a matching article today —
-  `ad.account_locked` and `ad.password_expired` both point at
-  `identity-cannot-sign-in` on purpose, per the plan's Step 5. The three
-  articles with no fault yet to link them (`general-triage-first-
-  questions`, `general-meridian-estate`, `mail-cannot-send-or-receive`) stay
-  unlinked: no fault is general-only, and the mail world model doesn't
-  exist until Task 12 — `test_every_fault_kb_link_resolves` only checks
-  links that exist, so this is inert, not failing, matching how the handoff
-  before this one already flagged populating `kb_articles` as optional
-  scope.
-- Verified the mechanism, not just green tests: `search_articles("printer")`
-  and `search_articles("zzzzz")` were both exercised directly at a REPL
-  against the real catalog before trusting the test, and every one of the
-  eight articles' frontmatter was re-read against `test_articles_load_with_
-  complete_frontmatter`'s field list by hand.
+- `src/vitsc/tools/kb.py` (new): `KnowledgeBase`, a plain `Tool` (not a
+  `DispatchTool` — it reads `vitsc.kb`'s article catalog, not the simulated
+  environment, so it has no `Query` to issue). `search`/`read` are its only
+  commands; every call still records a `ToolCall` with `mutating=False`,
+  because the log is what grading reads. A missing argument or unknown
+  command renders the same `MISSING`/`UNKNOWN` text every other tool uses.
+- `src/vitsc/tools/registry.py`: `KnowledgeBase()` registered, bringing the
+  tool roster to seven. `tests/test_tools_rest.py::test_all_six_tools_are_
+  registered` renamed to `test_all_seven_tools_are_registered` and its set
+  extended; `tests/test_web_tools.py::test_tool_pane_lists_every_tool`
+  extended with `"kb"`.
+- `tests/test_tools_kb.py` (new): the plan's five tests verbatim.
+- `src/vitsc/session/grading.py`: `Grade.kb_consulted: bool` — any `kb` tool
+  call on the ticket. Diligence signal only; no correctness field reads it.
+- `src/vitsc/session/afteraction.py`: `AfterAction.kb_suggestions: list[str]`
+  — one `<a href="/kb/{id}">` line per `fault.kb_articles` entry (marked
+  "already read" when the ticket's own `kb read` calls named that id,
+  "would have helped" otherwise), plus one plain-text line per
+  `SessionQueue.distractors` entry quoting that distractor's own `note`.
+  `build_after_action()` gained a keyword-only `distractors` parameter
+  (and made `siblings` keyword-only too, to keep pylint's
+  `too-many-positional-arguments` happy); `web/routes/close.py`'s
+  `render_after_action()` passes `session.queue.distractors` through.
+  `_afteraction.html` renders the list as a "Knowledge base" section with
+  `| safe` — deliberately, since every string here is built from static
+  catalog content (`fault.kb_articles`, `Distractor.note`), never from a
+  ticket/persona/chat source, unlike `report_text`'s autoescaping fix. See
+  the new deviation-table row in `CLAUDE.md`/`AGENTS.md`.
+- `src/vitsc/web/routes/kb.py` + `src/vitsc/web/templates/_kb.html` (new):
+  `GET /kb?q=` (lists all articles, or search hits; "No matching articles."
+  on a miss) and `GET /kb/{id}` (404 on an unknown id), so the KB is
+  browsable outside a ticket. Registered in `web/app.py`.
+- `tests/test_web_kb.py` (new), and new grading/after-action tests in
+  `tests/test_grading.py` (`kb_consulted` true/false, an unread article
+  reported as "would have helped", a read one as "already read", a seeded
+  distractor named by its own `note`).
+- Verified live, not just green tests: started the real app
+  (`uv run python -m vitsc`), opened `/events` to drive a real ticket
+  arrival off the simulated clock, ran `kb search`/`kb read` through actual
+  `POST /ticket/{id}/tool` calls against the running server, and closed the
+  ticket to confirm the after-action's "Knowledge base" section named the
+  article as already-read and quoted a seeded distractor's note.
+
+**Task 12** from the plan (line 1454) — **the mail world model**:
+
+- `src/vitsc/world/models.py`: `MailRule(name, forward_to, delete_after,
+  created_by)`, `Mailbox(owner_sam, primary_smtp, server, quota_mb, used_mb,
+  rules, forwarding_smtp, litigation_hold)`, `MailSystem(server,
+  transport_state, queue_depth, mailboxes)`. `World` gains a required
+  `mail: MailSystem` field and `mailbox_for(sam) -> Mailbox | None`.
+- `src/vitsc/data/company.yaml`: `MER-MB-01` (`role: mailserver`, ip
+  `10.20.10.8`) added under `servers` — no `seed.py` change was needed to
+  turn it into a `Machine`, since the existing servers loop already builds
+  one generically from any `hostname`/`ip` pair (`role` is metadata nothing
+  reads). A small `mail:` block (`server: MER-MB-01`, `quota_mb: 51200`)
+  gives the domain default.
+- `src/vitsc/world/seed.py`: `load_world()` derives one `Mailbox` per user
+  from their already-computed `upn`, rather than hand-authoring twelve
+  near-identical rows in `company.yaml` — the same reasoning that already
+  keeps `company.yaml` as the one hand-authored file. A new user added there
+  automatically gets a mailbox; there's no separate list to forget.
+- Deliberately **not** added: any mail invariant (a deleted mailbox, a quota
+  dropped below usage). Every invariant is a new way for a fault to accuse
+  itself, and there's nothing to test one against until 2b's mail faults
+  exist — adding it now would be untested by construction.
+- `tests/test_world_seed.py`: the plan's three tests verbatim.
+- Verified live: `uv run python3 -c "..."` against a fresh `load_world()`
+  confirmed all 12 users have a mailbox ending `@meridian.local`, the mail
+  system reports `MER-MB-01`/`Running`/queue depth 0/12 mailboxes,
+  `MER-MB-01` is a normal `Machine` with `assigned_to is None`, and
+  `mailbox_for("nope")` returns `None` rather than raising.
+- `mail-cannot-send-or-receive.md` (shipped inert in Task 10's KB) still
+  links to no fault — Task 13 (mail query/action kinds) and the mail fault
+  catalog after it are what make this load-bearing.
 
 ### Previous sessions (superseded detail)
 
-Tasks 1–9 (fault-aware model persona through the tier-2 web flow) all landed
-in earlier sessions and are described in `CLAUDE.md`/`AGENTS.md`'s own
-per-task paragraphs, which are the current, non-duplicated record — this
-handoff no longer repeats them. All nine tasks are on `main` as of Task 10's
-start, squash-merged via [#5](https://github.com/jimjamscott22/Virtual-IT-World/pull/5).
+Tasks 1–10 (fault-aware model persona through the KB content/loader) all
+landed in earlier sessions and are described in `CLAUDE.md`/`AGENTS.md`'s own
+per-task paragraphs, the current, non-duplicated record.
 
-## Next: Task 11
+## Next: Task 13
 
-**The KB tool and after-action links** — plan line 1367. Consumes Task 10's
-loader. `src/vitsc/tools/kb.py`: a plain `Tool` (not `DispatchTool` — it
-reads articles, not the environment, so it has no `Query` to issue), with
-`search`/`read` commands; it must still record a `ToolCall` with
-`mutating=False` on every call, since the log is what grading reads. Register
-it in `tools/registry.py`, and add `"kb"` to
-`tests/test_web_tools.py::test_tool_pane_lists_every_tool`'s enumeration.
-`grading.py` gains `Grade.kb_consulted: bool` (any `kb` tool call on the
-ticket) — a diligence signal only, never a correctness gate.
-`afteraction.py` gains `AfterAction.kb_suggestions: list[str]` from
-`fault.kb_articles`, rendered as links in `_afteraction.html`, distinguishing
-an article that was read from one that would have helped; if the technician
-found a distractor, name it too via `SessionQueue.distractors` and its
-`note`. `web/routes/kb.py`: `GET /kb?q=` and `GET /kb/{id}` rendering
-`_kb.html`, so the KB is browsable outside a ticket. Test file:
-`tests/test_tools_kb.py`, `tests/test_web_kb.py` — the plan's draft
-`test_the_kb_tool_does_not_import_faults_or_world` AST-walks
-`tools/kb.py`'s own source, which is a stronger, more local check than the
-package-wide `tests/test_architecture.py` sweep; keep both rather than
-picking one.
+**Mail query and action kinds** — plan line 1546. Consumes Task 12's models.
+Adds `_read_mail_mailbox`/`_read_mail_rules`/`_read_mail_queue` and
+`_do_mail_set_quota`/`_do_mail_archive`/`_do_mail_remove_rule`/
+`_do_mail_restart_transport` to `env/simulated.py`'s `getattr` dispatch (dots
+become underscores, same as every other kind). `mail.archive` must reduce
+`used_mb` to a fixed fraction of quota rather than to a remembered original —
+`SimulatedEnvironment` is constructed *after* `apply()`, so nothing cached at
+`__init__` reflects pre-fault state (the same gotcha `CLAUDE.md` already
+documents for `machine.renew_dhcp`). Extend `tests/test_simulated_env.py`
+with the plan's six tests.
 
 ## Conventions this codebase expects
 
@@ -108,14 +137,14 @@ Things that are easy to get wrong and are not obvious from the code alone.
    it, and the comment gets extended (not replaced) the next time it moves.
 4. **`tests/conftest.py` clears `VITSC_*` for every test.** Do not remove it.
 5. **Prove a new mechanism actually works, not just that pytest is green.**
-   This session did it by starting the real app and driving the bounce path
-   through `curl` against a live server, not just `TestClient`. Whatever
-   you're adding, find the equivalent "prove it actually does the thing"
-   check before moving on.
+   This session did it by starting the real app and driving `kb search`/
+   `kb read` and a ticket close through `curl` against a live server, not
+   just `TestClient` — confirming the "already read" vs "would have helped"
+   distinction actually renders, not just that a test asserts it does.
 6. **A change to `SessionQueue`'s RNG consumption can silently shift which
    fault a fixed `seed=N` deals**, in any test that builds a real
    `SessionQueue` or `AppSession`. Task 4's distractor seeding did this;
-   Tasks 5–9 did not touch the RNG path — but re-run the full suite and
+   Tasks 5–12 did not touch the RNG path — but re-run the full suite and
    read failures carefully rather than assuming either way whenever a
    scheduling-adjacent change lands.
 7. **A `Ticket | None` → `list[Ticket]` return-type change breaks
@@ -144,7 +173,7 @@ Things that are easy to get wrong and are not obvious from the code alone.
 12. **The plan's own worked examples can contradict its prose description
     of an algorithm's step order, or a test's own naive assertion can be
     wrong even when transcribed faithfully.** `tier2.py`'s ownership-first
-    ordering (Task 8) and this session's `scrub()`-based leak check are both
+    ordering (Task 8) and Task 10's `scrub()`-based leak check are both
     cases of trusting the actual behavioral requirement (what a worked
     example needs to pass, what the *scrub* convention already established
     elsewhere) over a plan's literal prose or literal draft test code.
@@ -154,10 +183,23 @@ Things that are easy to get wrong and are not obvious from the code alone.
     and ordinary words ("already", "load") accidentally contain short
     stripped terms like `"ad"`. Use `persona/client.py:scrub()` against the
     generated text (a chat turn, a persona reply), not `in page_html`.
+14. **`| safe` in a template is not categorically forbidden — only for text
+    that can trace back to a ticket, a persona, or a chat turn.** `report_text`
+    is autoescaped because a persona could inject markup (see the deviation
+    table). `AfterAction.kb_suggestions` is `| safe` because every string in
+    it is built in `afteraction.py` from static local content
+    (`fault.kb_articles`, `Distractor.note`) that never touches user or
+    model input. Check the data's provenance before copying either pattern.
+15. **A `World` field with no default (`mail: MailSystem`) makes every direct
+    `World(...)` construction outside `world/seed.py` a build error until
+    updated.** None exist today — every test builds a world via `load_world()`
+    — but the next task that adds a second required field should grep for
+    `World(` call sites first rather than assume `load_world()` is the only
+    constructor in play.
 
 ## Open threads
 
-Not blocking Task 11, but real, and none of them are recorded anywhere else.
+Not blocking Task 13, but real, and none of them are recorded anywhere else.
 
 - **`ipconfig` rendering has no test coverage.** `env/simulated.py`'s
   `_read_net_ipconfig` builds `ipconfig`-shaped output whose dotted-leader
@@ -167,24 +209,29 @@ Not blocking Task 11, but real, and none of them are recorded anywhere else.
   is the manual procedure; a green pipeline does **not** stand in for it.
 - **Two ways now reach `Disposition.ESCALATED`**: the reviewed
   `/ticket/{id}/escalate` flow (Task 9), and the unreviewed "Escalated"
-  option still sitting in the close-ticket dropdown (pre-existing, untouched
-  — see the Task 9 summary above). Whether the dropdown option should
-  eventually be removed now that a reviewed path exists is a real design
-  question nothing in the plan resolves; flagging it rather than deciding it
-  unilaterally.
+  option still sitting in the close-ticket dropdown (pre-existing, untouched).
+  Whether the dropdown option should eventually be removed now that a
+  reviewed path exists is a real design question nothing in the plan
+  resolves; flagging it rather than deciding it unilaterally.
 - **No CSS was added for `.chat-tier2`, `.tier2-bounce`, `.tier2-outcome`,
-  `.escalate-form`, or `.ticket-actions`.** This matches existing precedent
-  (`.warning`, `.ticket-cascade`, `.cascade-note` are also unstyled), but if
-  a future task does a styling pass, these are exactly the classes it would
-  want to pick up.
+  `.escalate-form`, `.ticket-actions`, `.kb-suggestions`, `.kb-page`,
+  `.kb-article`, `.kb-results`, or `.kb-search`.** This matches existing
+  precedent (`.warning`, `.ticket-cascade`, `.cascade-note` are also
+  unstyled), but if a future task does a styling pass, these are exactly the
+  classes it would want to pick up.
+- **`_kb.html` has no link back to it from `layout.html`/`index.html`.** The
+  KB is reachable by typing `/kb` directly, or via the `<a href="/kb/{id}">`
+  links the after-action report renders — there is no persistent nav link
+  from the main queue page. Not required by Task 11's stated scope, but
+  worth a look if a future task does navigation/UX passes.
 
 ## Resuming
 
 ```bash
-git checkout main   # Tasks 1-10 are all here; open a new branch off it for Task 11
+git checkout main   # Tasks 1-12 are all here once PR #7 merges
 uv sync
-uv run pytest          # expect 526 passed, 0 xfailed
+uv run pytest          # expect 544 passed, 0 xfailed
 ```
 
-Then read Task 11 in the plan (line 1367) and continue. `CLAUDE.md` is the
+Then read Task 13 in the plan (line 1546) and continue. `CLAUDE.md` is the
 architectural brief and is current as of this handoff.

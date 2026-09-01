@@ -19,6 +19,7 @@ def create_app(session: AppSession) -> FastAPI:
     from vitsc.web.routes import close as close_routes
     from vitsc.web.routes import escalate as escalate_routes
     from vitsc.web.routes import events as event_routes
+    from vitsc.web.routes import kb as kb_routes
     from vitsc.web.routes import queue as queue_routes
     from vitsc.web.routes import tools as tool_routes
     app.include_router(queue_routes.router)
@@ -27,4 +28,5 @@ def create_app(session: AppSession) -> FastAPI:
     app.include_router(close_routes.router)
     app.include_router(escalate_routes.router)
     app.include_router(event_routes.router)
+    app.include_router(kb_routes.router)
     return app
