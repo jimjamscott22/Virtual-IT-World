@@ -13,6 +13,10 @@ from vitsc.world.models import ProfileState, ServiceState, World
 
 NOT_FOUND = "The term is not recognised, or the object cannot be found."
 APIPA_PREFIX = "169.254"
+# What `mail.archive` reduces a mailbox to — a fixed fraction of quota, never
+# a remembered pre-fault value: `SimulatedEnvironment` is constructed *after*
+# `apply()`, so nothing cached at `__init__` reflects pre-fault state.
+ARCHIVE_TARGET_FRACTION = 0.1
 
 
 class SimulatedEnvironment:
@@ -291,6 +295,46 @@ class SimulatedEnvironment:
             ok=True, data={"unc": share.unc}, rendered=f"{q.target} -> {share.unc}"
         )
 
+    # --- reads: mail ---------------------------------------------------------
+    def _read_mail_mailbox(self, q: Query) -> Observation:
+        mailbox = self.world.mailbox_for(q.target)
+        if mailbox is None:
+            return Observation(ok=False, rendered=f"Get-Mailbox: {NOT_FOUND}")
+        data = {
+            "PrimarySmtpAddress": mailbox.primary_smtp,
+            "TotalItemSize": f"{mailbox.used_mb:.1f} MB",
+            "ProhibitSendQuota": f"{mailbox.quota_mb:.1f} MB",
+            "ForwardingSmtpAddress": mailbox.forwarding_smtp,
+            "LitigationHoldEnabled": mailbox.litigation_hold,
+        }
+        rendered = "\n".join(f"{k:<21}: {v}" for k, v in data.items())
+        return Observation(ok=True, data=data, rendered=rendered)
+
+    def _read_mail_rules(self, q: Query) -> Observation:
+        mailbox = self.world.mailbox_for(q.target)
+        if mailbox is None:
+            return Observation(ok=False, rendered=f"Get-InboxRule: {NOT_FOUND}")
+        data = {"rules": [r.model_dump() for r in mailbox.rules]}
+        if not mailbox.rules:
+            return Observation(ok=True, data=data, rendered="No inbox rules configured.")
+        lines = [f"{'Name':<20}{'ForwardTo':<28}{'DeleteMessage':<14}"]
+        lines += [
+            f"{r.name:<20}{r.forward_to or '':<28}{str(r.delete_after):<14}"
+            for r in mailbox.rules
+        ]
+        return Observation(ok=True, data=data, rendered="\n".join(lines))
+
+    def _read_mail_queue(self, q: Query) -> Observation:
+        if q.target.upper() != self.world.mail.server:
+            return Observation(ok=False, rendered=f"Get-Queue: {NOT_FOUND}")
+        data = {
+            "Server": self.world.mail.server,
+            "TransportState": self.world.mail.transport_state.value,
+            "QueueLength": self.world.mail.queue_depth,
+        }
+        rendered = "\n".join(f"{k:<15}: {v}" for k, v in data.items())
+        return Observation(ok=True, data=data, rendered=rendered)
+
     # --- actions: active directory -----------------------------------------
     def _do_ad_unlock(self, a: Action) -> ActionResult:
         user = self.world.org.users.get(a.target)
@@ -420,4 +464,52 @@ class SimulatedEnvironment:
             ok=True,
             rendered=f"Driver for {printer.name} on {machine.hostname} reinstalled "
             f"as '{printer.correct_driver}'.",
+        )
+
+    # --- actions: mail ---------------------------------------------------------
+    def _do_mail_set_quota(self, a: Action) -> ActionResult:
+        mailbox = self.world.mailbox_for(a.target)
+        if mailbox is None:
+            return ActionResult(ok=False, rendered=f"Set-Mailbox: {NOT_FOUND}")
+        try:
+            quota_mb = float(a.args.get("quota_mb", ""))
+        except ValueError:
+            return ActionResult(ok=False, rendered="-ProhibitSendQuota must be a number.")
+        mailbox.quota_mb = quota_mb
+        return ActionResult(
+            ok=True, rendered=f"Mailbox quota for {a.target} set to {quota_mb:.1f} MB."
+        )
+
+    def _do_mail_archive(self, a: Action) -> ActionResult:
+        mailbox = self.world.mailbox_for(a.target)
+        if mailbox is None:
+            return ActionResult(ok=False, rendered=f"New-MailboxExportRequest: {NOT_FOUND}")
+        mailbox.used_mb = min(mailbox.used_mb, mailbox.quota_mb * ARCHIVE_TARGET_FRACTION)
+        return ActionResult(
+            ok=True,
+            rendered=f"Archived {a.target}'s mailbox; now using "
+            f"{mailbox.used_mb:.1f} MB of {mailbox.quota_mb:.1f} MB.",
+        )
+
+    def _do_mail_remove_rule(self, a: Action) -> ActionResult:
+        mailbox = self.world.mailbox_for(a.target)
+        name = a.args.get("name", "")
+        if mailbox is None or not any(r.name == name for r in mailbox.rules):
+            return ActionResult(ok=False, rendered=f"Remove-InboxRule: {NOT_FOUND}")
+        mailbox.rules = [r for r in mailbox.rules if r.name != name]
+        return ActionResult(ok=True, rendered=f"Rule '{name}' removed from {a.target}'s mailbox.")
+
+    def _do_mail_restart_transport(self, a: Action) -> ActionResult:
+        if a.target.upper() != self.world.mail.server:
+            return ActionResult(
+                ok=False,
+                rendered="Restart-Service: Cannot find any service with service "
+                "name 'MSExchangeTransport'.",
+            )
+        self.world.mail.transport_state = ServiceState.RUNNING
+        self.world.mail.queue_depth = 0
+        return ActionResult(
+            ok=True,
+            rendered=f"Microsoft Exchange Transport service on {a.target} is running. "
+            "Queue drained.",
         )
