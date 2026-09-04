@@ -474,7 +474,7 @@ class SimulatedEnvironment:
         try:
             quota_mb = float(a.args.get("quota_mb", ""))
         except ValueError:
-            return ActionResult(ok=False, rendered="-ProhibitSendQuota must be a number.")
+            return ActionResult(ok=False, rendered="-quota_mb must be a number.")
         mailbox.quota_mb = quota_mb
         return ActionResult(
             ok=True, rendered=f"Mailbox quota for {a.target} set to {quota_mb:.1f} MB."

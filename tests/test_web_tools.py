@@ -16,7 +16,7 @@ def test_tool_pane_lists_every_tool(client):
     c, session = client
     ticket = session.queue.active()[0]
     body = c.get(f"/ticket/{ticket.id}/tools").text
-    for name in ("ad", "net", "remote", "events", "print", "ps", "kb"):
+    for name in ("ad", "net", "remote", "events", "print", "ps", "kb", "mail"):
         assert f'value="{name}"' in body
 
 

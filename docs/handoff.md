@@ -1,6 +1,6 @@
 # Phase 2a handoff
 
-Written at the end of the session that landed Task 13. Delete this file when
+Written at the end of the session that landed Task 14. Delete this file when
 Phase 2a is complete — it records *situational* state (branch, PR, what is
 half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
@@ -9,93 +9,85 @@ half-done), not architecture. Architecture lives in `CLAUDE.md`.
 | | |
 | --- | --- |
 | Branch | `claude/task-13-mail-env` |
-| Pull request | not yet opened this session |
+| Pull request | [#8](https://github.com/jimjamscott22/Virtual-IT-World/pull/8), draft, now covers Tasks 13–14 (see below) |
 | Base | `main` (Tasks 1–12 merged via [#7](https://github.com/jimjamscott22/Virtual-IT-World/pull/7)) |
-| Tests | 556 passing, 0 xfailed |
+| Tests | 564 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
 
-This branch is a fresh cut off `main`, not a continuation of
-`claude/next-task-plan-y1g5ti` (which PR #7 merged and retired). A prior
-session's attempt to force-reset that old branch name to `main` was blocked
-by the sandbox's safety classifier as a destructive git op — `git checkout -B
-<name> origin/main` plus a force-with-lease push both got refused, even
-though the branch's own commits were already fully merged. The workaround:
-cut a new, differently-named branch (`claude/task-13-mail-env`) straight off
-`origin/main` instead of trying to force-reuse the old name. If a future
-session hits the same block, don't fight the classifier — just pick a new
-branch name.
+PR #8 was opened after Task 13 alone; Task 14 was stacked onto the same
+branch/PR rather than split into a second one, continuing the precedent set
+when Task 12 was stacked onto PR #7. Update the PR title/description to
+cover both tasks before merging.
 
 ## What landed this session
 
-**Task 13** from the plan (line 1546) — **mail query and action kinds**:
+**Task 14** from the plan (line 1634) — **the mail console tool**:
 
-- `src/vitsc/env/simulated.py` gains three read handlers and four action
-  handlers, dispatched the same `getattr(self, f"_read_{kind}")`/
-  `_do_{kind}` way as every other query/action kind (dots become
-  underscores):
-  - `_read_mail_mailbox`: `Get-Mailbox`-shaped output —
-    `PrimarySmtpAddress`, `TotalItemSize`, `ProhibitSendQuota`,
-    `ForwardingSmtpAddress`, `LitigationHoldEnabled`. Unknown sam → clean
-    `ok=False`.
-  - `_read_mail_rules`: a `Get-InboxRule`-style table (`Name`/`ForwardTo`/
-    `DeleteMessage` columns), or `"No inbox rules configured."` when the
-    mailbox has none. Unknown sam → clean `ok=False`.
-  - `_read_mail_queue`: transport state + queue depth, but only for
-    `world.mail.server` itself — any other target is `NOT_FOUND`, the same
-    "the query names a specific real thing" discipline `printer.state` and
-    `machine.state` already use.
-  - `_do_mail_set_quota`: parses `quota_mb` as a float (invalid input → a
-    clean `-ProhibitSendQuota must be a number.` failure, mirroring
-    `machine.clear_disk`'s `-Gb` validation), then sets it directly.
-  - `_do_mail_archive`: reduces `used_mb` to `ARCHIVE_TARGET_FRACTION`
-    (10%) of the mailbox's *current* quota — never a remembered
-    pre-archive value. This isn't a style choice: `SimulatedEnvironment`
-    is constructed *after* `apply()`, so nothing cached at `__init__`
-    could reflect a pre-fault value even if the code tried — the same
-    gotcha `CLAUDE.md` already documents for `machine.renew_dhcp`
-    (`dhcp_reserved_ip` existing as a fault-immune field for exactly this
-    reason).
-  - `_do_mail_remove_rule`: fails cleanly (`ok=False`) when the named rule
-    doesn't exist, rather than silently no-op'ing or raising.
-  - `_do_mail_restart_transport`: only accepts `world.mail.server` as a
-    target (a `Restart-Service`-shaped "service not found" message
-    otherwise), then sets `transport_state = RUNNING` and `queue_depth = 0`.
-- `tests/test_simulated_env.py`: the plan's six tests, plus five more
-  covering the reads (`mail.rules`/`mail.queue`) the plan's test block
-  didn't exercise directly, and the not-found path for every new kind
-  (`mail.rules` on an unknown user, `mail.queue`/`mail.restart_transport`
-  on a non-mail-server target, `mail.remove_rule` on a nonexistent rule
-  name) — the plan's own six tests only covered the happy paths plus one
-  not-found case (`mail.mailbox`), and every other existing kind in this
-  file has a matching not-found test, so these fill a real gap rather than
-  padding coverage.
-- Verified live, not just green tests: a `uv run python3 -c "..."` script
-  drove every new read and action against a real `SimulatedEnvironment`
-  built from `load_world()`, printing the actual rendered PowerShell/Exchange-
-  style text for each (mailbox dump, empty vs. populated rule table, queue
-  status, quota change, archive, rule removal, transport restart) and
-  confirming every not-found path returns `ok=False` rather than raising.
-- Nothing consumes these kinds yet — Task 14 (the mail console tool) is
-  what exposes them to the player; `mail-cannot-send-or-receive.md`
-  (shipped inert in Task 10's KB) still links to no fault until the mail
-  fault catalog after that.
+- `src/vitsc/tools/mail.py` (new): `MailConsole`, a `DispatchTool` subclass
+  (`TARGET_PARAM = "sam"`) mapping `get-mailbox`/`get-rules`/`get-queue` to
+  Task 13's read kinds and `set-quota`/`archive`/`remove-rule`/
+  `restart-transport` to its action kinds. `target_key()` is overridden so
+  `get-queue`/`restart-transport` read `args["host"]` instead of
+  `args["sam"]` — the same host-vs-primary-target pattern
+  `printing.py:PrintManagement` already uses for `restart-spooler`'s
+  `from`.
+- `src/vitsc/tools/registry.py`: `MailConsole()` registered, bringing the
+  tool roster to eight. `tests/test_tools_rest.py::test_all_seven_tools_are_
+  registered` renamed to `test_all_eight_tools_are_registered` and its set
+  extended; `tests/test_web_tools.py::test_tool_pane_lists_every_tool`
+  extended with `"mail"`.
+- `src/vitsc/web/templates/_tools.html`: **not modified** — it already
+  iterates `all_tools()` generically (the same non-change Task 11's `kb`
+  tool hit), so the plan's stated file list was inert here.
+- `src/vitsc/env/simulated.py`: one-line fix to `_do_mail_set_quota`'s
+  error message (`-ProhibitSendQuota must be a number.` →
+  `-quota_mb must be a number.`), discovered by the plan's own test —
+  see the new deviation-table row in `CLAUDE.md`/`AGENTS.md`.
+- `tests/test_tools_mail.py` (new): the plan's five tests plus three more
+  (`get-queue`/`restart-transport` targeting by host, and an unknown-host
+  failure) — the plan's own test block didn't exercise the host-targeting
+  override at all, which is exactly the part of this tool most likely to
+  have a bug.
+- Verified live, not just green tests: a standalone script drove every
+  `mail` command directly against a real `SimulatedEnvironment` (all 8
+  registered tools confirmed, correct/incorrect renders, correct
+  `mutating` flags, every not-found/missing-arg path failing cleanly), then
+  started the real app (`uv run python -m vitsc`) and confirmed `mail`
+  appears in the tool pane and `get-mailbox`/`set-quota` work through real
+  `POST /ticket/{id}/tool` calls against a running server.
 
-## Next: Task 14
+### Previous sessions (superseded detail)
 
-**The mail console tool** — plan line 1634. Consumes Task 13's kinds.
-`tools/mail.py`: `MailConsole` (`name = "mail"`), a `DispatchTool` subclass
-mapping `get-mailbox`/`get-rules`/`get-queue` to the three read kinds and
-`set-quota`/`archive`/`remove-rule`/`restart-transport` to the four action
-kinds — the `TARGET_PARAM` is `"sam"` for the mailbox/rule commands but the
-mail server hostname for `get-queue`/`restart-transport`, so check whether
-`DispatchTool`'s single `TARGET_PARAM` class attribute is enough or whether
-`target_key()` needs overriding per-command (`printing.py`'s
-`PrintManagement` is worth checking first — it also has host-vs-printer
-target ambiguity). Register in `tools/registry.py` (bringing the roster to
-eight); extend `tests/test_web_tools.py::test_tool_pane_lists_every_tool`
-with `"mail"`. Test file: `tests/test_tools_mail.py` (the plan's two tests
-plus the usual not-found/missing-arg coverage this session added a habit of
-writing for Task 13).
+Tasks 1–13 (fault-aware model persona through mail query/action kinds) all
+landed in earlier sessions and are described in `CLAUDE.md`/`AGENTS.md`'s
+own per-task paragraphs, the current, non-duplicated record.
+
+## Next: Task 15
+
+**The two reference mail faults** — plan line 1697. Consumes Tasks 12–14.
+Adds `catalog/mail.py` with two faults, both `FaultBase`-inheriting and
+`register()`-ed:
+
+- `mail.mailbox_full` (`difficulty=2`, not escalate-correct): `apply()`
+  pushes `used_mb` just over `quota_mb`; `is_present()` is
+  `used_mb >= quota_mb`. **Two** canonical resolutions —
+  `mail.set_quota` and `mail.archive` — deliberately, since this is the
+  catalog's clearest demonstration that the pass/fail gate is world state,
+  not a chosen button. Add its id to `session/ticket.py:WORK_STOPPING`.
+- `mail.external_forwarding_rule` (`difficulty=4`, **escalate-correct**):
+  `apply()` adds a `MailRule` forwarding outside `meridian.local` and sets
+  `forwarding_smtp`; `is_present()` checks for any such rule.
+  `escalation_reason` explains this is a security incident (acting on it
+  destroys evidence), and `escalation_evidence` points tier-2 at
+  `mail.rules`. Note the plan's own framing: three escalate-correct faults
+  now exist, each escalate-correct for a *different* reason (authorization,
+  hardware, "acting is the mistake") — a better drill than three flavors of
+  the same reason.
+
+`catalog/__init__.py` needs the new module imported so registration fires.
+Both faults get full conformance-harness coverage automatically via
+`tests/test_catalog.py`'s parametrization — no new test needed there, just
+`tests/test_faults_mail.py` for the specifics the plan lists.
 
 ## Conventions this codebase expects
 
@@ -115,13 +107,13 @@ Things that are easy to get wrong and are not obvious from the code alone.
    it, and the comment gets extended (not replaced) the next time it moves.
 4. **`tests/conftest.py` clears `VITSC_*` for every test.** Do not remove it.
 5. **Prove a new mechanism actually works, not just that pytest is green.**
-   This session did it with a standalone script exercising every new query/
-   action kind directly against `SimulatedEnvironment` and printing the
-   actual rendered output, not just asserting a substring is present.
+   This session did it two ways: a standalone script exercising every
+   `mail` command directly against `SimulatedEnvironment`, then a second
+   pass through the real running app's HTTP surface.
 6. **A change to `SessionQueue`'s RNG consumption can silently shift which
    fault a fixed `seed=N` deals**, in any test that builds a real
    `SessionQueue` or `AppSession`. Task 4's distractor seeding did this;
-   Tasks 5–13 did not touch the RNG path — but re-run the full suite and
+   Tasks 5–14 did not touch the RNG path — but re-run the full suite and
    read failures carefully rather than assuming either way whenever a
    scheduling-adjacent change lands.
 7. **A `Ticket | None` → `list[Ticket]` return-type change breaks
@@ -172,10 +164,24 @@ Things that are easy to get wrong and are not obvious from the code alone.
     already in `main`'s history). Don't spend cycles arguing with it or
     trying alternate destructive incantations — cut a new branch name off
     `main` instead and move on.
+17. **A `DispatchTool`'s error-message wording can leak the wrong
+    vocabulary layer.** `_do_mail_set_quota`'s validation error originally
+    named the real cmdlet's PowerShell parameter (`-ProhibitSendQuota`)
+    instead of the args-dict key the tool actually receives (`quota_mb`) —
+    harmless until a test (rightly) asserts on the key a player would type
+    appearing in the rejection. When a query/action handler's args dict key
+    and the real cmdlet's flag name differ, decide deliberately which one
+    an error message should echo, and check what any existing test already
+    expects before picking.
+18. **A tool's own `_tools.html`/registry "modify" instructions in the plan
+    can be inert.** `_tools.html` iterates `all_tools()` and each tool's own
+    `commands()` generically — Tasks 11 (`kb`) and 14 (`mail`) both needed
+    zero template changes despite the plan listing the file. Check whether
+    a generic loop already covers a new tool before editing the template.
 
 ## Open threads
 
-Not blocking Task 14, but real, and none of them are recorded anywhere else.
+Not blocking Task 15, but real, and none of them are recorded anywhere else.
 
 - **`ipconfig` rendering has no test coverage.** `env/simulated.py`'s
   `_read_net_ipconfig` builds `ipconfig`-shaped output whose dotted-leader
@@ -202,18 +208,17 @@ Not blocking Task 14, but real, and none of them are recorded anywhere else.
 - **`mail.mailbox`'s `TotalItemSize`/`ProhibitSendQuota` render as a plain
   `"51200.0 MB"` rather than real Exchange's mixed-unit
   `"50 GB (53,687,091,200 bytes)"` style.** Consistent with how this
-  codebase already simplifies other cmdlet output (e.g. `ipconfig`'s
-  simplified subnet handling) rather than chasing full fidelity; flagging in
-  case a future polish pass wants to match real `Get-Mailbox` formatting
-  more closely.
+  codebase already simplifies other cmdlet output, but flagging in case a
+  future polish pass wants to match real `Get-Mailbox` formatting more
+  closely.
 
 ## Resuming
 
 ```bash
-git checkout main   # Tasks 1-13 are all here once this session's PR merges
+git checkout main   # Tasks 1-14 are all here once PR #8 merges
 uv sync
-uv run pytest          # expect 556 passed, 0 xfailed
+uv run pytest          # expect 564 passed, 0 xfailed
 ```
 
-Then read Task 14 in the plan (line 1634) and continue. `CLAUDE.md` is the
+Then read Task 15 in the plan (line 1697) and continue. `CLAUDE.md` is the
 architectural brief and is current as of this handoff.
