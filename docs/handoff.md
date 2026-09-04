@@ -9,7 +9,7 @@ half-done), not architecture. Architecture lives in `CLAUDE.md`.
 | | |
 | --- | --- |
 | Branch | `claude/task-13-mail-env` |
-| Pull request | [#8](https://github.com/jimjamscott22/Virtual-IT-World/pull/8), draft, now covers Tasks 13–14 (see below) |
+| Pull request | [#8](https://github.com/jimjamscott22/Virtual-IT-World/pull/8), merged, now covers Tasks 13–14 (see below) |
 | Base | `main` (Tasks 1–12 merged via [#7](https://github.com/jimjamscott22/Virtual-IT-World/pull/7)) |
 | Tests | 564 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
