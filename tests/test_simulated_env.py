@@ -2,7 +2,7 @@ import pytest
 
 from vitsc.env.base import Action, Query
 from vitsc.env.simulated import SimulatedEnvironment
-from vitsc.world.models import ServiceState
+from vitsc.world.models import MailRule, ServiceState
 from vitsc.world.seed import load_world
 
 
@@ -141,3 +141,86 @@ def test_snapshot_and_restore_round_trip(env):
     env.world.org.users["m.alvarez"].locked_out = True
     env.restore(snap)
     assert env.world.org.users["m.alvarez"].locked_out is False
+
+
+def test_mail_mailbox_read_renders_exchange_shaped_output(env):
+    obs = env.read(Query(kind="mail.mailbox", target="m.alvarez"))
+    assert obs.ok
+    assert "PrimarySmtpAddress" in obs.rendered
+    assert "TotalItemSize" in obs.rendered
+
+
+def test_mail_read_of_an_unknown_user_fails_cleanly(env):
+    assert env.read(Query(kind="mail.mailbox", target="nobody")).ok is False
+
+
+def test_mail_rules_read_of_an_unknown_user_fails_cleanly(env):
+    assert env.read(Query(kind="mail.rules", target="nobody")).ok is False
+
+
+def test_mail_rules_read_lists_configured_rules(env):
+    env.world.mail.mailboxes["m.alvarez"].rules = [
+        MailRule(name="Keep"), MailRule(name="Drop", forward_to="x@example.com")
+    ]
+    obs = env.read(Query(kind="mail.rules", target="m.alvarez"))
+    assert obs.ok
+    assert "Keep" in obs.rendered and "Drop" in obs.rendered
+
+
+def test_mail_queue_read_renders_transport_state(env):
+    obs = env.read(Query(kind="mail.queue", target="MER-MB-01"))
+    assert obs.ok
+    assert "Running" in obs.rendered
+
+
+def test_mail_queue_read_of_an_unknown_server_fails_cleanly(env):
+    assert env.read(Query(kind="mail.queue", target="MER-WS-001")).ok is False
+
+
+def test_set_quota_raises_headroom(env):
+    env.world.mail.mailboxes["m.alvarez"].used_mb = 51000.0
+    result = env.execute(
+        Action(kind="mail.set_quota", target="m.alvarez", args={"quota_mb": "102400"})
+    )
+    assert result.ok
+    assert env.world.mail.mailboxes["m.alvarez"].quota_mb == 102400.0
+
+
+def test_archive_reduces_usage_without_touching_quota(env):
+    box = env.world.mail.mailboxes["m.alvarez"]
+    box.used_mb = 51000.0
+    before = box.quota_mb
+    assert env.execute(Action(kind="mail.archive", target="m.alvarez")).ok
+    assert box.used_mb < 51000.0
+    assert box.quota_mb == before
+
+
+def test_remove_rule_removes_only_the_named_rule(env):
+    box = env.world.mail.mailboxes["m.alvarez"]
+    box.rules = [MailRule(name="Keep"), MailRule(name="Drop", forward_to="x@example.com")]
+    assert env.execute(
+        Action(kind="mail.remove_rule", target="m.alvarez", args={"name": "Drop"})
+    ).ok
+    assert [r.name for r in box.rules] == ["Keep"]
+
+
+def test_removing_an_unknown_rule_fails_cleanly(env):
+    box = env.world.mail.mailboxes["m.alvarez"]
+    box.rules = [MailRule(name="Keep")]
+    result = env.execute(
+        Action(kind="mail.remove_rule", target="m.alvarez", args={"name": "Nope"})
+    )
+    assert result.ok is False
+    assert [r.name for r in box.rules] == ["Keep"]
+
+
+def test_restart_transport_runs_the_queue_down(env):
+    env.world.mail.transport_state = ServiceState.STOPPED
+    env.world.mail.queue_depth = 400
+    assert env.execute(Action(kind="mail.restart_transport", target="MER-MB-01")).ok
+    assert env.world.mail.transport_state is ServiceState.RUNNING
+    assert env.world.mail.queue_depth == 0
+
+
+def test_restart_transport_of_an_unknown_server_fails_cleanly(env):
+    assert env.execute(Action(kind="mail.restart_transport", target="MER-WS-001")).ok is False

@@ -2,6 +2,7 @@ from vitsc.tools.ad import ADConsole
 from vitsc.tools.base import Tool
 from vitsc.tools.eventlog import EventViewer
 from vitsc.tools.kb import KnowledgeBase
+from vitsc.tools.mail import MailConsole
 from vitsc.tools.network import NetworkTools
 from vitsc.tools.powershell import PowerShellConsole
 from vitsc.tools.printing import PrintManagement
@@ -17,6 +18,7 @@ _TOOLS: dict[str, Tool] = {
         PrintManagement(),
         PowerShellConsole(),
         KnowledgeBase(),
+        MailConsole(),
     ]
 }
 
