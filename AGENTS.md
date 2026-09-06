@@ -7,15 +7,20 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 A single-user helpdesk simulator (`vitsc` — Virtual IT Support Center), built as personal practice for desktop-support/helpdesk job applications. The player works tickets against a simulated Windows/AD environment (`Meridian Freight Co.`) using tools that mirror real utilities (AD console, PowerShell, network tools, event viewer, print management, remote session).
 
 Full context lives in:
-- Design spec: `docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md`
-- Phase 1 plan: `docs/superpowers/plans/2026-08-07-phase-1-drill.md`
 - Phase 2a plan: `docs/superpowers/plans/2026-08-14-phase-2a-depth-mechanics.md`
+  — the only one of these still in the working tree.
+- Design spec and Phase 1 plan: **deleted from the tree** in commit `dbcd2bb`,
+  recoverable with
+  `git show dbcd2bb^:docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md`
+  and `git show dbcd2bb^:docs/superpowers/plans/2026-08-07-phase-1-drill.md`.
+  The 2a plan still cross-references both by path, as does Task 17, which is
+  what will have to restore or rewrite the spec.
 - **Current state, next task, and open threads: `docs/handoff.md`** — read this
   first if you are picking the work up mid-stream.
 
 Phase 1 (Tasks 1–19) is complete: world model, `SimulatedEnvironment`, the ten-fault v1 catalog, the six player-facing tools, the persona layer (`TemplatePersona` + `LMStudioPersona`), the session layer (ticket/priority/SLA/grading/after-action), SQLite persistence (`session/store.py`), and the FastAPI + HTMX web app (`uv run python -m vitsc`). Unverified, not failing: the model-backed path has never run against a live LM Studio instance — `docs/verifying-lmstudio.md` is the manual procedure.
 
-Phase 2a (`docs/superpowers/plans/2026-08-14-phase-2a-depth-mechanics.md`) Tasks 1–15 have landed; see `docs/handoff.md` for exactly where work stopped and what's next. Per-task detail is in git history and the PRs — the load-bearing facts that survive here:
+Phase 2a (`docs/superpowers/plans/2026-08-14-phase-2a-depth-mechanics.md`) Tasks 1–16 have landed; see `docs/handoff.md` for exactly where work stopped and what's next. Per-task detail is in git history and the PRs — the load-bearing facts that survive here:
 
 - **Task 1**: leak terms bind per *ticket*, not at persona construction — `Persona.for_fault(leak_terms) -> Persona`, resolved via `SessionQueue.persona_for(ticket)`. Leak terms reach `scrub()` only, never a prompt.
 - **Task 2**: `persona/config.py:PersonaSettings.from_env()`/`build_persona()` wire `VITSC_PERSONA`/`VITSC_BASE_URL`/`VITSC_MODEL` into `AppSession.build`; the default and any unrecognised backend fall back to `template` rather than raising. `AppSession.degraded` reads through to `queue.persona.degraded`, driven by the SSE payload rather than initial render.
@@ -32,6 +37,7 @@ Phase 2a (`docs/superpowers/plans/2026-08-14-phase-2a-depth-mechanics.md`) Tasks
 - **Task 13**: mail query/action kinds in `env/simulated.py` (`mail.mailbox`/`mail.rules`/`mail.queue`, `mail.set_quota`/`mail.archive`/`mail.remove_rule`/`mail.restart_transport`). `mail.archive` reduces `used_mb` to 10% of *current* quota, per the `__init__`-after-`apply()` gotcha below.
 - **Task 14**: the mail console tool — `tools/mail.py:MailConsole`, a `DispatchTool` overriding `target_key()` so `get-queue`/`restart-transport` target `args["host"]` instead of `args["sam"]`. Tool roster is now eight (`tools/registry.py`).
 - **Task 15**: the two reference mail faults (`faults/catalog/mail.py`), bringing the catalog to thirteen. `mail.mailbox_full` is the clearest demonstration that the gate is world state — `mail.set_quota` and `mail.archive` both clear it and neither is "the" answer — and is in `session/ticket.py:WORK_STOPPING`. `mail.external_forwarding_rule` is the third escalate-correct fault, and the three are escalate-correct for three *different* reasons: authorisation (`ad.offboarded_reactivation`), hardware (`endpoint.failing_disk`), and acting-being-itself-the-mistake (this one). Both link the previously orphaned `mail-cannot-send-or-receive` KB article.
+- **Task 16**: end-to-end coverage for every Phase 2a surface (`tests/test_end_to_end.py`) — a cascade worked through HTTP (three tickets, one `restart-spooler`, three clean closes), a bounced escalation recovered, both mail faults (the resolvable one and the escalate-correct one), and a full pass with distractors seeded proving they are never blamed on the technician. `HTTP_FIX` is now guarded by set *equality* against the non-escalate-correct roster in both directions, plus a check that every entry names a command the tool actually registers.
 
 `tests/conftest.py` clears the three `VITSC_*` variables for every test. Now that `AppSession.build` reads the environment, a developer with `VITSC_PERSONA=lmstudio` exported would otherwise point the entire suite at a local model; the Global Constraint that the suite passes with nothing on localhost is enforced there rather than left to habit.
 
@@ -100,7 +106,7 @@ fault catalog (vitsc/faults/catalog/*)  ← applies mutations to World via a Pla
 
 `tests/test_catalog.py` is parametrized over every registered fault × every placement it declares (`fault.id@placement.key`). For each case it mechanically proves: absent before `apply()` and present after; the declared `diagnostic_path` actually surfaces something and actually differs from the clean world; every `canonical_resolutions()` path drives `is_present()` false with zero invariant violations; and `symptoms()` contains none of the fault's own `leak_terms` and none of the shared `JARGON` set (dns, dhcp, active directory, lockout, etc — the player is meant to diagnose the mechanism, not read it off the ticket). A new fault gets full coverage from this harness with no new test written — just register it correctly.
 
-When adding a fault, `docs/superpowers/plans/2026-08-07-phase-1-drill.md` has the task-by-task detail for the remaining catalog entries; `catalog/identity.py`'s `AccountLocked` is the reference example for the shape (placements/apply/is_present/symptoms/diagnostic_path/canonical_resolutions).
+When adding a fault, the Phase 1 plan (deleted; see the top of this file for how to recover it) has the task-by-task detail for the original catalog entries; `catalog/identity.py`'s `AccountLocked` is the reference example for the shape (placements/apply/is_present/symptoms/diagnostic_path/canonical_resolutions).
 
 ## Where the code deliberately diverges from the plan
 
@@ -141,6 +147,8 @@ The plan contains full code listings. Tasks 10–14 were implemented from them, 
 | `session/ticket.py:accept_escalation` | Task 9: `accept_escalation(at)` closes the ticket | The bounce path records tier-2's words (`reopen(text)`); the accept path discarded them. `Fault.escalation_reason` is spoken in exactly one place — `tier2.py`'s acceptance string — so an accepted escalation, the *correct* disposition for three faults now, taught the player nothing about why it was not theirs. `accept_escalation(text, at)` now appends the tier-2 turn, `AfterAction.tier2_note` carries it, and `_afteraction.html` renders it autoescaped (it is static catalog text, but unlike `kb_suggestions` it arrives via a `ChatTurn`, so it is escaped like any other). |
 | `tests/test_end_to_end.py`: `HTTP_FIX` | Task 16 adds the `mail.mailbox_full` entry | `test_every_resolvable_fault_has_an_http_fix_mapped` fails the moment the fault registers, so deferring the one-line entry to the next task would leave the suite red in between. Added with the fault instead. |
 | `tests/test_catalog.py:test_exactly_two_faults_are_escalate_correct` | plan silent; not in Task 15's stated file list | Hardcodes the escalate-correct roster, the same shape as `test_v1_catalog_is_complete`. Renamed to `..._three_...` and extended, with the docstring now naming the one-reason-each rationale so the next addition has to justify itself rather than pad the set. |
+| `tests/test_end_to_end.py:test_every_resolvable_fault_has_an_http_fix_mapped` | Task 16: "the existing guard must keep proving that only escalate-correct faults are absent from the table, not merely that the table is non-empty" | Containment in one direction did not do that: it caught a *missing* entry but not an entry for a fault that no longer exists, nor an escalate-correct fault wrongly listed. Now `set(HTTP_FIX) == {resolvable ids}`, which fails in both directions, with `test_every_http_fix_names_a_real_command_and_target_field` covering the other way an entry can be wrong — present, but naming a command the tool does not register or a command with no `TARGET_FIELD`. |
+| `tests/test_end_to_end.py`: a fifth Task 16 test | Task 16 lists four tests, `test_a_mail_ticket_can_be_worked_through_http` among them (body elided as `...`) | The mail slice is two faults with *opposite* correct dispositions, and one test can only exercise one of them. `test_an_escalate_correct_mail_ticket_is_accepted_through_http` covers the other, and is the only end-to-end proof that `escalation_reason` now reaches the rendered report — the Task 9 defect fixed alongside Task 15. |
 
 ## Placement sentinels
 

@@ -1,6 +1,6 @@
 # Phase 2a handoff
 
-Written at the end of the session that landed Task 15. Delete this file when
+Written at the end of the session that landed Tasks 15 and 16. Delete this file when
 Phase 2a is complete — it records *situational* state (branch, PR, what is
 half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
@@ -9,8 +9,9 @@ half-done), not architecture. Architecture lives in `CLAUDE.md`.
 | | |
 | --- | --- |
 | Branch | `claude/game-dev-progress-review-i56yyx` |
+| Pull request | [#10](https://github.com/jimjamscott22/Virtual-IT-World/pull/10), draft, green |
 | Base | `main` (Tasks 1–14 all merged; the branch was cut clean off it) |
-| Tests | 618 passing, 0 xfailed |
+| Tests | 624 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
 
 ## Health check done at the start of this session
@@ -82,24 +83,59 @@ verdict each time); and the real server (`uv run python -m vitsc`) started,
 a ticket driven in off the simulated clock via `/events`, and `mail
 get-mailbox` run through an actual `POST /ticket/{id}/tool`.
 
-## Next: Task 16
+## Task 16 also landed
 
-**End-to-end coverage for every new surface** — plan line 1791. The
-`HTTP_FIX` half of its Step 1 is already done (above), so what remains is
-Step 2's four new tests in `tests/test_end_to_end.py`:
+**End-to-end coverage for every new surface** — plan line 1791. Step 1's
+`HTTP_FIX` entries came in with Task 15; this added Step 2's tests and then
+some, all in `tests/test_end_to_end.py`:
 
-- `test_a_cascade_can_be_worked_through_http` — three tickets, one
-  `print restart-spooler`, all three grade cleared.
-- `test_a_bounced_escalation_can_be_recovered_through_http` — escalate
-  `ad.account_locked`, get bounced, fix it, close it.
-- `test_a_mail_ticket_can_be_worked_through_http`.
-- `test_a_seeded_distractor_does_not_block_any_ticket`.
+- `test_a_cascade_can_be_worked_through_http` — three tickets sharing one
+  `cascade_id`, one `print restart-spooler`, three clean closes, each report
+  carrying the "was behind 3 tickets" note.
+- `test_a_bounced_escalation_can_be_recovered_through_http` — escalate a
+  fixable fault, get bounced on ownership, fix it, close it. Also asserts the
+  bounce text passes `scrub()` against the fault's own leak terms.
+- `test_a_mail_ticket_can_be_worked_through_http` and
+  `test_an_escalate_correct_mail_ticket_is_accepted_through_http` — the mail
+  slice's two faults have *opposite* correct dispositions, so one test cannot
+  cover both. The second is also the only end-to-end proof that
+  `escalation_reason` reaches the rendered report.
+- `test_a_seeded_distractor_does_not_block_any_ticket` — a full pass with
+  noise in the world, asserting `collateral_count == 0` (a distractor must
+  never be blamed on the technician) and that every seeded distractor's note
+  is named in the report.
 
-Note the plan's snippet for the first uses `session.queue.open_cascade(...)`
-and the second asserts `state.value == "in_progress"` — both APIs exist as
-written. Then Task 17 (documentation refresh) closes Phase 2a; much of its
-Steps 1–2 is already done, since `CLAUDE.md` has been kept current per task
-rather than left to the end.
+`test_every_resolvable_fault_has_an_http_fix_mapped` was strengthened from
+containment to set equality, so a stale entry fails too, and
+`test_every_http_fix_names_a_real_command_and_target_field` was added for the
+other way an entry can be wrong.
+
+**Driven manually as well**, per the plan's Step 4 and convention 5. Two real
+servers, no `TestClient`: the default app for a bounced escalation (tier-2
+returns it, ticket goes back to `in_progress`, the nudge names nothing) and
+an ordinary ticket closed "Resolved correctly" with three distractors seeded
+and named as pre-existing in the report; and a second server built with a
+cascade dealt, where the queue rendered one shared `C1` tag on three rows in
+three different voices, a single `restart-spooler` cleared it, and all three
+closed correctly with the cascade note.
+
+## Next: Task 17
+
+**Documentation refresh** — plan line 1888, the last task in Phase 2a. Much
+of Steps 1–2 is already done, because `CLAUDE.md`/`AGENTS.md` have been kept
+current per task rather than left to the end. What genuinely remains:
+
+- **Step 3**: the design spec's §6 catalog table still says "v1 catalog (10
+  faults)" and does not list the `Fault` protocol's four Phase 2a members
+  (`leak_terms` predates them; `kb_articles`, `escalation_reason`,
+  `escalation_evidence`, `reporters()` do not). Note the file was deleted in
+  commit `dbcd2bb` and needs restoring or rewriting before it can be edited —
+  check `git show dbcd2bb^:docs/superpowers/specs/...` first.
+- **Step 4**: outline `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md`
+  — skeleton only (goal, constraints, fault-per-task breakdown, Definition of
+  Done). The detail belongs in a plan written against finished 2a code.
+- Then check Phase 2a's own Definition of Done at the end of the plan, and
+  delete this handoff file when it holds.
 
 ## Conventions this codebase expects
 
@@ -190,6 +226,13 @@ Things that are easy to get wrong and are not obvious from the code alone.
 
 Not blocking Task 16, but real.
 
+- **Two of `CLAUDE.md`'s three context pointers were dangling.** The design
+  spec and the Phase 1 plan were both deleted from the tree in commit
+  `dbcd2bb`, but `CLAUDE.md` still listed them as if they existed — as does
+  the Phase 2a plan, at its own lines 11–12 and in Task 17's file list.
+  `CLAUDE.md` now says so and gives the `git show dbcd2bb^:...` recovery
+  command; the plan is left alone, since editing a plan to match reality is
+  Task 17's call, not a drive-by.
 - **`ipconfig` rendering has no test coverage.** `_read_net_ipconfig` builds
   `ipconfig`-shaped output whose dotted-leader spacing deliberately mimics
   the real utility, and nothing asserts on it. Related to convention 19.
@@ -225,7 +268,7 @@ Not blocking Task 16, but real.
 ```bash
 git checkout claude/game-dev-progress-review-i56yyx
 uv sync
-uv run pytest          # expect 618 passed, 0 xfailed
+uv run pytest          # expect 624 passed, 0 xfailed
 ```
 
 Then read Task 16 in the plan (line 1791) and continue. `CLAUDE.md` is the
