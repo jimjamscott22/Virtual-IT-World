@@ -11,7 +11,7 @@ half-done), not architecture. Architecture lives in `CLAUDE.md`.
 | --- | --- |
 | Branch | `claude/game-dev-progress-review-i56yyx` |
 | Pull request | [#10](https://github.com/jimjamscott22/Virtual-IT-World/pull/10), draft, green |
-| Base | `main` (Tasks 1–14 all merged; the branch was cut clean off it) |
+| Base | `main` — **merged in at `fa5bef0`**, which is PR #9's own implementation of Task 15. See the collision section below. |
 | Tests | 624 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
 
@@ -190,6 +190,51 @@ Checked item by item against the plan's own list, not asserted:
 a machine with LM Studio running and cannot honestly be marked from here.
 Do those, settle the spec question above, and this file can be deleted.
 
+## Task 15 was implemented twice — read this before touching `mail.py`
+
+While this branch was working Tasks 15–17, **PR #9 landed the same Task 15 on
+`main` independently** (`fa5bef0`, merged 2026-09-06). Two sessions built the
+same two faults from the same plan. `main` was merged into this branch and the
+overlap resolved deliberately rather than by picking a side:
+
+| File | Resolution |
+| --- | --- |
+| `faults/catalog/mail.py` | **PR #9's module kept as the base** — its naming, placements (`_mailbox_owners`, all users), symptom wording, and `quota_mb="999999"` all stand. Three changes applied on top, below. |
+| `tests/test_faults_mail.py` | This branch's kept: it is a strict superset, containing all four of PR #9's tests plus eight more. |
+| `tests/test_catalog.py` | Both sides made the *same* substantive change (same id sets, same escalate-correct roster). This branch's docstrings kept. |
+| `tests/test_end_to_end.py` | Auto-merged; both added the same `HTTP_FIX`/`TARGET_FIELD` entries. |
+| `CLAUDE.md` / `AGENTS.md` / `docs/handoff.md` | This branch's kept — they are current through Task 17 where PR #9's stop at 15 — with PR #9's unique content folded in (the `escalation_evidence` nuance, conventions 19–20 below). |
+
+### The three changes applied on top of PR #9's `mail.py`
+
+1. **`ExternalForwardingRule.is_present()` now gates on both halves.**
+   PR #9's own open thread flagged this and judged it "not a correctness bug,
+   since no invariant tracks `forwarding_smtp`". That reasoning is right about
+   *invariants* and about *grading* — the fault is escalate-correct, so a
+   technician who removes the rule and closes as resolved is marked wrong
+   either way. But `is_present()` is documented in `faults/base.py` as "the
+   single source of truth for both 'is it broken' and 'was it fixed'", and on
+   `main` as merged it reports **fixed** on a mailbox that is still
+   redirecting every message to an outside address. Reproduced directly:
+   `mail.remove_rule` → `is_present()` False → `Get-Mailbox` still shows
+   `ForwardingSmtpAddress: …@external-mail.example.com`.
+   PR #9's thread proposed the other resolution — have `mail.remove_rule`
+   clear `forwarding_smtp` too. That was rejected on purpose: it would make
+   "delete the rule" a *complete* fix for a security incident, which is the
+   opposite of what this fault exists to teach. **If you prefer that
+   direction, this is the one change to revert.**
+2. **`canonical_resolutions()` is now `[]`**, which follows from 1: with the
+   gate covering `forwarding_smtp`, no sequence of existing actions clears
+   the fault. Same encoding `endpoint.failing_disk` already uses, and
+   `tests/test_catalog.py` already carries the branch for it.
+3. **Both faults now set `kb_articles = ["mail-cannot-send-or-receive"]`**,
+   which had shipped inert in Task 10 and was linked by no fault. Also
+   `assert mailbox is not None` replaced with a raising helper — an `assert`
+   vanishes under `python -O`, and this one guards the pass/fail gate.
+
+Also: `diagnostic_path()` gained `mail.mailbox` alongside `mail.rules`, since
+after change 1 the fault has two halves and `mail.rules` only shows one.
+
 ## Conventions this codebase expects
 
 Things that are easy to get wrong and are not obvious from the code alone.
@@ -275,6 +320,21 @@ Things that are easy to get wrong and are not obvious from the code alone.
     tier-2 chat turn silently deletes the entire teaching payload of an
     escalate-correct ticket, with no test failing.
 
+21. **A hardcoded "complete" id-set test (`test_v1_catalog_is_complete`) and
+    a hardcoded count test (`test_exactly_three_faults_are_escalate_correct`)
+    both break the moment a task registers a new fault — before the task that
+    "officially" owns updating them arrives.** Keep them current in the same
+    task that adds the fault. (From PR #9's handoff; this branch hit the same
+    thing independently.)
+22. **`tests/test_end_to_end.py`'s `HTTP_FIX`/`TARGET_FIELD` tables must stay
+    current in the task that registers a new escalate-incorrect fault**, not
+    whichever later task's plan text happens to mention the file. The guard
+    iterates `all_faults()` and fails immediately. (Also from PR #9.)
+23. **Two sessions can be given the same task.** Task 15 was built twice, in
+    parallel, from the same plan — see the collision section above. Before
+    starting a task, check whether `main` has moved and whether an open PR
+    already covers it.
+
 ## Open threads
 
 Not blocking Task 16, but real.
@@ -298,6 +358,7 @@ Not blocking Task 16, but real.
   The fix is to treat a missing `gb` as a rejection (`ok=False`, no
   mutation), matching `set_quota`, and let `DispatchTool`'s existing
   "a rejected call never reached the environment" rule keep the grade honest.
+- **PR #9's `forwarding_smtp` thread is resolved**, by the gate change above rather than by clearing the field. Reopen it if you prefer the other direction.
 - **`ipconfig` rendering has no test coverage.** `_read_net_ipconfig` builds
   `ipconfig`-shaped output whose dotted-leader spacing deliberately mimics
   the real utility, and nothing asserts on it. Related to convention 19.

@@ -1,33 +1,31 @@
-"""The mail domain's two reference faults.
-
-They are deliberately opposites. `mail.mailbox_full` is the catalog's
-clearest demonstration that the pass/fail gate is world state and not a
-chosen button — two unrelated actions both clear it, and neither is "the"
-answer. `mail.external_forwarding_rule` is the third escalate-correct fault
-and is escalate-correct for a third distinct reason: `ad.offboarded_
-reactivation` needs authorisation and `endpoint.failing_disk` needs
-hardware, but here *acting at all* is the mistake.
-"""
-
 from random import Random
 
 from vitsc.env.base import Action, Query
 from vitsc.faults.base import FaultBase, PLACEHOLDER, Placement, ResolutionPath, UserSymptoms
 from vitsc.faults.registry import register
-from vitsc.world.models import MailRule, World
+from vitsc.world.models import Mailbox, MailRule, World
 
-# Enough headroom that the quota path clears the fault for any overage
-# `MailboxFull.apply` can produce, without being an absurd grant.
-RAISED_QUOTA_MB = "76800"
+_FORWARD_RULE_NAME = "AutoForward"
+_EXTERNAL_DOMAIN = "external-mail.example.com"
 
 
-def _staff_with_mailboxes(world: World) -> list[Placement]:
-    """Users who make plausible reporters: ordinary staff who still work here."""
-    return [
-        Placement(kind="user", key=m.assigned_to)
-        for m in world.machines.values()
-        if m.assigned_to is not None and m.assigned_to in world.mail.mailboxes
-    ]
+def _mailbox_owners(world: World) -> list[Placement]:
+    return [Placement(kind="user", key=sam) for sam in world.org.users]
+
+
+def _mailbox(world: World, at: Placement) -> Mailbox:
+    """The placement's mailbox, or a loud failure.
+
+    `placements()` only ever returns users, and `seed.py` derives one mailbox
+    per user, so `None` here means the world was built wrong. An `assert`
+    would say the same thing but vanish under `python -O`, taking the check
+    with it — and `is_present()` is the pass/fail gate, so it must not
+    silently read `False` because a mailbox went missing.
+    """
+    mailbox = world.mailbox_for(at.key)
+    if mailbox is None:
+        raise KeyError(f"no mailbox for {at.key}")
+    return mailbox
 
 
 def _is_external(world: World, address: str | None) -> bool:
@@ -35,111 +33,99 @@ def _is_external(world: World, address: str | None) -> bool:
 
 
 class MailboxFull(FaultBase):
+    """The clearest demonstration in the catalog that the gate is world state,
+    not a chosen button: raising the quota and reducing usage both clear it."""
+
     id = "mail.mailbox_full"
     domain = "mail"
     difficulty = 2
-    canonical_title = "Mailbox at its send quota, so outbound mail stopped"
+    canonical_title = "Mailbox over quota; outbound mail queued and not sending"
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["quota", "mailbox", "full", "limit", "archive"]
     escalation_is_correct = False
     kb_articles = ["mail-cannot-send-or-receive"]
 
     def placements(self, world: World) -> list[Placement]:
-        return _staff_with_mailboxes(world)
+        return _mailbox_owners(world)
 
     def apply(self, world: World, at: Placement, rng: Random) -> None:
-        mailbox = world.mail.mailboxes[at.key]
-        mailbox.used_mb = mailbox.quota_mb + rng.uniform(1.0, 200.0)
+        mailbox = _mailbox(world, at)
+        mailbox.used_mb = mailbox.quota_mb + rng.uniform(50, 500)
 
     def is_present(self, world: World, at: Placement) -> bool:
-        mailbox = world.mail.mailboxes[at.key]
+        mailbox = _mailbox(world, at)
         return mailbox.used_mb >= mailbox.quota_mb
 
     def symptoms(self, world: World, at: Placement) -> UserSymptoms:
         return UserSymptoms(
             opening="My emails are all sitting in the outbox and nothing is going out.",
-            onset="Since yesterday afternoon. The morning was fine.",
-            scope="Just me — the person opposite sent one while I was watching.",
-            error_text=(
-                "Your message did not reach some or all of the intended recipients."
-            ),
+            onset="Since this morning, it was fine yesterday.",
+            scope="Just me, nobody else has said anything.",
+            error_text="It says my messages can't be delivered right now.",
         )
 
     def diagnostic_path(self, at: Placement) -> list[Query]:
-        return [Query(kind="mail.mailbox", target=at.key)]
+        return [Query(kind="mail.mailbox", target=PLACEHOLDER)]
 
     def canonical_resolutions(self) -> list[ResolutionPath]:
-        # Two paths on purpose. Grading asks `is_present()` against the world,
-        # so a technician who picks either one — or does something else that
-        # gets usage back under the limit — is right.
         return [
             ResolutionPath(
-                label="Raise the send quota to give the mailbox headroom",
+                label="Raise the mailbox quota",
                 actions=[
                     Action(
                         kind="mail.set_quota",
                         target=PLACEHOLDER,
-                        args={"quota_mb": RAISED_QUOTA_MB},
-                    )
+                        args={"quota_mb": "999999"},
+                    ),
                 ],
             ),
             ResolutionPath(
-                label="Archive old mail to bring usage back down",
+                label="Archive to reduce usage below quota",
                 actions=[Action(kind="mail.archive", target=PLACEHOLDER)],
             ),
         ]
 
 
 class ExternalForwardingRule(FaultBase):
-    """Escalate-correct: mail is being redirected out of the company, which
-    is a security incident rather than a misconfiguration. Deleting the rule
-    destroys the record of when it appeared and who created it, and the
-    response has to include a credential reset and a review of what was
-    already sent — none of which is a technician's call.
-
-    Encoded the same way `endpoint.failing_disk` is: `escalation_is_correct`
-    plus an empty `canonical_resolutions()`. There genuinely is no correct
-    thing to press. A technician who removes the visible rule anyway finds
-    the fault still present, because the mailbox-level forwarding the
-    attacker also set is still redirecting — which is the lesson.
-    """
+    """Escalate-correct because *acting* is the mistake: deleting the rule
+    destroys evidence of a compromised account, so this is a security
+    incident to hand off, not a routine fix."""
 
     id = "mail.external_forwarding_rule"
     domain = "mail"
     difficulty = 4
-    canonical_title = "Mailbox redirecting mail to an outside address"
+    canonical_title = "Inbox rule silently forwarding mail to an external address"
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["forward", "rule", "compromis", "phish", "hack"]
     escalation_is_correct = True
     kb_articles = ["mail-cannot-send-or-receive"]
     escalation_reason = (
-        "Mail is being redirected outside the company, which makes this a "
-        "security incident and not a cleanup job — deleting what you can see "
-        "destroys the evidence of when it started and who set it, and the "
-        "response still needs a credential reset and a review of what left."
+        "This looks like a compromised account: deleting the forwarding rule "
+        "destroys the evidence of when it was created, and the response needs "
+        "a credential reset and a review of what was sent — a security "
+        "incident, not a routine fix."
     )
     escalation_evidence = [Query(kind="mail.rules", target=PLACEHOLDER)]
 
     def placements(self, world: World) -> list[Placement]:
-        return _staff_with_mailboxes(world)
+        return _mailbox_owners(world)
 
     def apply(self, world: World, at: Placement, rng: Random) -> None:
-        mailbox = world.mail.mailboxes[at.key]
-        address = f"svc.backup{rng.randint(100, 999)}@mailrelay-secure.example"
+        mailbox = _mailbox(world, at)
+        outside_address = f"{at.key}@{_EXTERNAL_DOMAIN}"
         mailbox.rules.append(
-            MailRule(
-                # Innocuous-looking on purpose: a name nobody questions is
-                # the whole point of where an attacker hides one.
-                name="RSS Subscriptions",
-                forward_to=address,
-                delete_after=True,
-                created_by=at.key,
-            )
+            MailRule(name=_FORWARD_RULE_NAME, forward_to=outside_address, created_by=at.key)
         )
-        mailbox.forwarding_smtp = address
+        mailbox.forwarding_smtp = outside_address
 
     def is_present(self, world: World, at: Placement) -> bool:
-        mailbox = world.mail.mailboxes[at.key]
+        # Both halves, not just the rule. `apply()` sets the mailbox-level
+        # forwarding address too, and no action in `env/simulated.py` clears
+        # it — so a rules-only gate reads "fixed" the moment `mail.remove_rule`
+        # runs, on a mailbox that is still redirecting every message out of
+        # the company. The gate is what "was it fixed" means; it has to mean
+        # the mail stopped leaving.
+        mailbox = _mailbox(world, at)
         return any(
             _is_external(world, rule.forward_to) for rule in mailbox.rules
         ) or _is_external(world, mailbox.forwarding_smtp)
@@ -147,18 +133,26 @@ class ExternalForwardingRule(FaultBase):
     def symptoms(self, world: World, at: Placement) -> UserSymptoms:
         return UserSymptoms(
             opening="Customers keep replying to messages I never sent them.",
-            onset="The first one came in on Tuesday and there have been three since.",
-            scope="It seems to be my own contacts. Nobody else has mentioned it.",
+            onset="It's been happening for the past couple of days.",
+            scope="Several different customers, not just one person.",
             error_text=None,
         )
 
     def diagnostic_path(self, at: Placement) -> list[Query]:
+        # Both reads, because the fault has two halves and `mail.rules` only
+        # shows one of them.
         return [
-            Query(kind="mail.rules", target=at.key),
-            Query(kind="mail.mailbox", target=at.key),
+            Query(kind="mail.rules", target=PLACEHOLDER),
+            Query(kind="mail.mailbox", target=PLACEHOLDER),
         ]
 
     def canonical_resolutions(self) -> list[ResolutionPath]:
+        # Empty, and honestly so: with the gate covering `forwarding_smtp`,
+        # no sequence of existing actions clears this fault. That is the same
+        # escalate-correct-plus-no-technician-fix encoding `endpoint.
+        # failing_disk` uses, and `tests/test_catalog.py` already has the
+        # branch for it. A technician who removes the visible rule finds the
+        # fault still present — which is the lesson this fault exists to teach.
         return []
 
 
