@@ -29,6 +29,7 @@ WORK_STOPPING = {
     "ad.password_expired",
     "ad.offboarded_reactivation",
     "net.no_dhcp_lease",
+    "mail.mailbox_full",
 }
 SENIOR_TITLES = {"Operations Manager", "Controller"}
 

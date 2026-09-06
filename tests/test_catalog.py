@@ -115,8 +115,11 @@ def test_every_fault_declares_a_backend_and_a_difficulty():
 
 
 def test_v1_catalog_is_complete():
-    """The ten v1 faults, plus Task 7's cascade fault — the first Phase 2a
-    addition to this set."""
+    """The ten v1 faults, plus Task 7's cascade fault and Task 15's mail
+    faults — Phase 2a's additions to this set. The name is historical, not
+    a hard boundary: a new fault registers and is picked up by the
+    parametrized conformance tests automatically, but this one hardcodes
+    the whole id set."""
     ids = {f.id for f in all_faults()}
     assert ids == {
         "ad.account_locked", "ad.password_expired", "ad.offboarded_reactivation",
@@ -124,9 +127,12 @@ def test_v1_catalog_is_complete():
         "print.server_spooler_stopped",
         "net.static_dns_misconfig", "net.no_dhcp_lease",
         "endpoint.disk_full", "endpoint.failing_disk",
+        "mail.mailbox_full", "mail.external_forwarding_rule",
     }
 
 
-def test_exactly_two_faults_are_escalate_correct():
+def test_exactly_three_faults_are_escalate_correct():
     escalate = {f.id for f in all_faults() if f.escalation_is_correct}
-    assert escalate == {"ad.offboarded_reactivation", "endpoint.failing_disk"}
+    assert escalate == {
+        "ad.offboarded_reactivation", "endpoint.failing_disk", "mail.external_forwarding_rule",
+    }
