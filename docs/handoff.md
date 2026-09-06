@@ -1,6 +1,7 @@
 # Phase 2a handoff
 
-Written at the end of the session that landed Tasks 15 and 16. Delete this file when
+Written at the end of the session that landed Tasks 15, 16 and 17 —
+every task in Phase 2a. Delete this file when
 Phase 2a is complete — it records *situational* state (branch, PR, what is
 half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
@@ -119,23 +120,75 @@ cascade dealt, where the queue rendered one shared `C1` tag on three rows in
 three different voices, a single `restart-spooler` cleared it, and all three
 closed correctly with the cascade note.
 
-## Next: Task 17
+## Task 17 also landed
 
-**Documentation refresh** — plan line 1888, the last task in Phase 2a. Much
-of Steps 1–2 is already done, because `CLAUDE.md`/`AGENTS.md` have been kept
-current per task rather than left to the end. What genuinely remains:
+**Documentation refresh** — plan line 1888, the last task in Phase 2a.
 
-- **Step 3**: the design spec's §6 catalog table still says "v1 catalog (10
-  faults)" and does not list the `Fault` protocol's four Phase 2a members
-  (`leak_terms` predates them; `kb_articles`, `escalation_reason`,
-  `escalation_evidence`, `reporters()` do not). Note the file was deleted in
-  commit `dbcd2bb` and needs restoring or rewriting before it can be edited —
-  check `git show dbcd2bb^:docs/superpowers/specs/...` first.
-- **Step 4**: outline `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md`
-  — skeleton only (goal, constraints, fault-per-task breakdown, Definition of
-  Done). The detail belongs in a plan written against finished 2a code.
-- Then check Phase 2a's own Definition of Done at the end of the plan, and
-  delete this handoff file when it holds.
+- **Step 1** (`CLAUDE.md`'s architecture section) was the real work. The layer
+  diagram had never been updated past Phase 1: it listed six tools, no
+  session layer, no persona layer, and no distractors. It now shows all eight
+  tools, both catalogs feeding `World`, and the two layers that sit above
+  `Environment`. New bullets for `vitsc.distractors` and `vitsc.kb`;
+  `FaultBase`, cascades and the thirteen-fault domain breakdown folded into
+  the faults bullet; `session/tier2.py` into the session bullet.
+- The "enforced mechanically" line became a **table of the six guarantees
+  that are proved by a test rather than trusted to a reviewer**, each naming
+  the file that proves it. That is the most useful thing in the section for
+  anyone deciding whether a change is safe.
+- **Step 2** (the deviation table) needed nothing new — it has been extended
+  per task rather than left to the end, which is how it stayed accurate.
+- **Step 3** (the spec's §6 catalog table) is **not done, and is the one open
+  item in Phase 2a.** See below.
+- **Step 4**: `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md` written
+  as a skeleton — goal, seven inherited constraints, the fault-per-task
+  shape, the domain table, three open questions to settle *before* Task 1
+  (does the estate grow? does difficulty drive scheduling? does a session
+  end?), and a Definition of Done.
+
+### The one thing Task 17 could not do
+
+Step 3 says to update the design spec's §6 catalog table. **The spec is not in
+the working tree** — it and the whole Phase 1 plan were deleted in commit
+`dbcd2bb` ("Delete the design specification…", authored by Jamie Scott,
+2026-08-28), 4,604 lines across the two files.
+
+That was a deliberate, titled commit by the repo owner, so restoring it is
+not a call this session made unilaterally. Recover with:
+
+```bash
+git show dbcd2bb^:docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md
+git show dbcd2bb^:docs/superpowers/plans/2026-08-07-phase-1-drill.md
+```
+
+If the spec comes back, §6 needs: the catalog table grown from "v1 catalog
+(10 faults)" to the current thirteen, and the `Fault` protocol's four Phase
+2a members added to its listing (`kb_articles`, `escalation_is_correct` /
+`escalation_reason` / `escalation_evidence`, `reporters()`). If it stays
+deleted, `CLAUDE.md` is the sole architectural record and the 2a plan's own
+cross-references to the spec (its lines 11–12, and Task 17's file list) are
+permanently dangling — worth a line in the 2b plan saying so.
+
+## Phase 2a Definition of Done
+
+Checked item by item against the plan's own list, not asserted:
+
+| | Item | Status |
+|---|---|---|
+| 1 | `uv run pytest` green with LM Studio **not** running | ✅ 624 passed |
+| 2 | `uv run pytest` green with LM Studio **running** | ⬜ **cannot be checked here** — no sandbox has had network to a local LM Studio. `docs/verifying-lmstudio.md` is the manual procedure; a green pipeline does not stand in for it |
+| 3 | `VITSC_PERSONA=lmstudio` roleplays every ticket; stopping LM Studio mid-session shows the degraded banner | ⬜ same, manual |
+| 4 | Thirteen faults conform across every placement, in all five domains | ✅ identity 4, printing 3, network 2, endpoint 2, mail 2 |
+| 5 | Every distractor passes the non-interference harness | ✅ 99 passed |
+| 6 | A cascade opens several tickets, one fix clears all, report names the shared cause | ✅ automated **and** played live |
+| 7 | A fixable escalation bounces with a leak-free nudge; an escalate-correct one with evidence is accepted | ✅ automated and played live |
+| 8 | No KB article names a fault id or `canonical_title`; every `kb_articles` link resolves | ✅ |
+| 9 | `grep -r "from vitsc.faults" src/vitsc/tools/` empty; `test_architecture.py` green with `mail.py` and `kb.py` present | ✅ |
+| 10 | No leak term in any system prompt | ✅ |
+| 11 | A full ticket can be worked in the browser in all five domains | ✅ all five played through a real server over HTTP: `ad.account_locked`, `net.static_dns_misconfig`, `print.spooler_stopped`, `endpoint.disk_full`, `mail.mailbox_full` — each closed "Resolved correctly" |
+
+**Phase 2a is complete except for items 2 and 3**, which are a manual check on
+a machine with LM Studio running and cannot honestly be marked from here.
+Do those, settle the spec question above, and this file can be deleted.
 
 ## Conventions this codebase expects
 
@@ -233,6 +286,18 @@ Not blocking Task 16, but real.
   `CLAUDE.md` now says so and gives the `git show dbcd2bb^:...` recovery
   command; the plan is left alone, since editing a plan to match reality is
   Task 17's call, not a drive-by.
+- **`remote clear-disk` with no `gb` silently succeeds and frees nothing.**
+  `_do_machine_clear_disk` reads `float(a.args.get("gb", "0"))`, so a player
+  who types `remote clear-disk host=MER-WS-001` gets `ok=True` and the
+  cheerful message "MER-WS-001 now has 0.7 GB free of 256.0 GB" — a mutation
+  logged against them that did nothing. `_do_mail_set_quota` handles the same
+  situation the opposite way, rejecting a missing `quota_mb` outright.
+  Found by mistyping the command against a real server during the Definition
+  of Done pass. Not fixed here: Task 17 is a documentation task, and the fix
+  touches a `mutating`/grading-adjacent path that deserves its own change.
+  The fix is to treat a missing `gb` as a rejection (`ok=False`, no
+  mutation), matching `set_quota`, and let `DispatchTool`'s existing
+  "a rejected call never reached the environment" rule keep the grade honest.
 - **`ipconfig` rendering has no test coverage.** `_read_net_ipconfig` builds
   `ipconfig`-shaped output whose dotted-leader spacing deliberately mimics
   the real utility, and nothing asserts on it. Related to convention 19.
@@ -271,5 +336,8 @@ uv sync
 uv run pytest          # expect 624 passed, 0 xfailed
 ```
 
-Then read Task 16 in the plan (line 1791) and continue. `CLAUDE.md` is the
-architectural brief and is current as of this handoff.
+Phase 2a's tasks are all complete. What is left is the Definition of Done's
+items 2 and 3 (the LM Studio check, on a machine that has it) and the spec
+question in the Task 17 section above. `CLAUDE.md` is the architectural brief
+and is current; `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md` is the
+next plan, as a skeleton to fill in.
