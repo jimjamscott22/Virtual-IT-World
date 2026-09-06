@@ -317,9 +317,14 @@ class SimulatedEnvironment:
         data = {"rules": [r.model_dump() for r in mailbox.rules]}
         if not mailbox.rules:
             return Observation(ok=True, data=data, rendered="No inbox rules configured.")
-        lines = [f"{'Name':<20}{'ForwardTo':<28}{'DeleteMessage':<14}"]
+        # Widths come from the content, the way `Format-Table` sizes a column,
+        # rather than from a fixed literal: a forwarding address longer than
+        # the column ran straight into the next one with no separating space.
+        name_w = max(len("Name"), *(len(r.name) for r in mailbox.rules)) + 2
+        fwd_w = max(len("ForwardTo"), *(len(r.forward_to or "") for r in mailbox.rules)) + 2
+        lines = [f"{'Name':<{name_w}}{'ForwardTo':<{fwd_w}}DeleteMessage"]
         lines += [
-            f"{r.name:<20}{r.forward_to or '':<28}{str(r.delete_after):<14}"
+            f"{r.name:<{name_w}}{r.forward_to or '':<{fwd_w}}{r.delete_after}"
             for r in mailbox.rules
         ]
         return Observation(ok=True, data=data, rendered="\n".join(lines))

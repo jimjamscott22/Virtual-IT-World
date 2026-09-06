@@ -32,7 +32,7 @@ def escalate_ticket(request: Request, ticket_id: int, note: str = Form(...)):
     response = review_escalation(ticket, fault, session.env.world)
 
     if response.accepted:
-        ticket.accept_escalation(at=session.env.world.clock)
+        ticket.accept_escalation(response.text, at=session.env.world.clock)
         return render_after_action(request, session, ticket)
 
     ticket.reopen(response.text)

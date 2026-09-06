@@ -21,6 +21,7 @@ HTTP_FIX = {
     "print.wrong_driver": ("print", "reinstall-driver"),
     "print.server_spooler_stopped": ("print", "restart-spooler"),
     "endpoint.disk_full": ("remote", "clear-disk"),
+    "mail.mailbox_full": ("mail", "set-quota"),
 }
 
 # Each DispatchTool also decides its own field name for "the thing this
@@ -36,6 +37,7 @@ TARGET_FIELD = {
     "restart-spooler": "from",
     "reinstall-driver": "printer",
     "clear-disk": "host",
+    "set-quota": "sam",
 }
 
 

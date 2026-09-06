@@ -89,10 +89,26 @@ def test_accepting_closes_the_ticket_as_escalated():
         note=f"{ticket.placement.key} is disabled after offboarding; HR must authorise.",
         at=env.world.clock,
     )
-    review_escalation(ticket, fault, env.world)
-    ticket.accept_escalation(at=env.world.clock)
+    response = review_escalation(ticket, fault, env.world)
+    ticket.accept_escalation(response.text, at=env.world.clock)
     assert ticket.state is TicketState.CLOSED
     assert ticket.disposition.value == "escalated"
+
+
+def test_accepting_keeps_what_tier2_said():
+    """The acceptance carries the fault's `escalation_reason`, and it is the
+    only place that text is ever spoken — dropping it threw away the whole
+    point of an escalate-correct ticket."""
+    env, queue, fault, ticket = _ticket("ad.offboarded_reactivation")
+    ticket.escalate(
+        note=f"{ticket.placement.key} is disabled after offboarding; HR must authorise.",
+        at=env.world.clock,
+    )
+    response = review_escalation(ticket, fault, env.world)
+    assert response.accepted
+    ticket.accept_escalation(response.text, at=env.world.clock)
+    assert ticket.chat[-1].speaker == "tier2"
+    assert fault.escalation_reason in ticket.chat[-1].text
 
 
 def test_escalating_a_closed_ticket_raises():
