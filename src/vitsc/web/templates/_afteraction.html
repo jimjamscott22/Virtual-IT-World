@@ -58,4 +58,7 @@
   {% elif report.tier2 == "bounced" %}
   <p class="tier2-outcome">This was escalated, and tier-2 bounced it back to you before it closed.</p>
   {% endif %}
+  {% if report.tier2_note %}
+  <blockquote class="tier2-note">{{ report.tier2_note }}</blockquote>
+  {% endif %}
 </article>

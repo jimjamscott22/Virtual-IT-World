@@ -115,11 +115,14 @@ def test_every_fault_declares_a_backend_and_a_difficulty():
 
 
 def test_v1_catalog_is_complete():
-    """The ten v1 faults, plus Task 7's cascade fault and Task 15's mail
-    faults — Phase 2a's additions to this set. The name is historical, not
-    a hard boundary: a new fault registers and is picked up by the
-    parametrized conformance tests automatically, but this one hardcodes
-    the whole id set."""
+    """The ten v1 faults, plus what Phase 2a has added to that set since.
+
+    The name is historical — this is the registered roster, not a hard
+    boundary. Everything above is parametrized over `all_faults()` and picks
+    a new fault up automatically; this one enumerates deliberately, so that
+    adding or losing a fault is a visible decision rather than a silent
+    change in what the drill deals.
+    """
     ids = {f.id for f in all_faults()}
     assert ids == {
         "ad.account_locked", "ad.password_expired", "ad.offboarded_reactivation",
@@ -132,7 +135,12 @@ def test_v1_catalog_is_complete():
 
 
 def test_exactly_three_faults_are_escalate_correct():
+    """One per reason a ticket is not yours: it needs authorisation, it needs
+    hardware, or acting on it is itself the mistake. Three flavours of the
+    same reason would be a worse drill than three different ones."""
     escalate = {f.id for f in all_faults() if f.escalation_is_correct}
     assert escalate == {
-        "ad.offboarded_reactivation", "endpoint.failing_disk", "mail.external_forwarding_rule",
+        "ad.offboarded_reactivation",
+        "endpoint.failing_disk",
+        "mail.external_forwarding_rule",
     }

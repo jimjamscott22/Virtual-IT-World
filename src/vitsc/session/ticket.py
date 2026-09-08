@@ -129,5 +129,15 @@ class Ticket(BaseModel):
         self.state = TicketState.IN_PROGRESS
         self.disposition = None
 
-    def accept_escalation(self, at: datetime) -> None:
+    def accept_escalation(self, text: str, at: datetime) -> None:
+        """A tier-2 acceptance. Records what tier-2 said before closing.
+
+        The bounce path has always kept its text (`reopen`); this one dropped
+        it, which silently threw away the only place a fault's
+        `escalation_reason` is ever spoken — the whole teaching payload of an
+        escalate-correct ticket.
+        """
+        # pylint does not model pydantic's default_factory: it infers `chat`
+        # as a FieldInfo rather than the list built at runtime.
+        self.chat.append(ChatTurn(speaker="tier2", text=text))  # pylint: disable=no-member
         self.close(Disposition.ESCALATED, at=at)

@@ -29,6 +29,10 @@ class AfterAction(BaseModel):
     # Mirrors `Grade.escalation_quality` ("none"/"accepted"/"bounced") so a
     # template can render the escalation outcome without reaching into grade.
     tier2: str = "none"
+    # What tier-2 actually said. Static catalog text (`Fault.escalation_reason`)
+    # rendered by `session/tier2.py`, never persona or model output — but it
+    # reaches the template autoescaped anyway, unlike `kb_suggestions`.
+    tier2_note: str = ""
     # HTML fragments (article links, plain-text distractor notes) built here
     # from trusted local content only — never from persona/user text — which
     # is what makes rendering them `| safe` in the template acceptable.
@@ -128,5 +132,8 @@ def build_after_action(
         verdict=verdict,
         cascade_note=cascade_note,
         tier2=grade.escalation_quality,
+        tier2_note=next(
+            (turn.text for turn in reversed(ticket.chat) if turn.speaker == "tier2"), ""
+        ),
         kb_suggestions=_kb_suggestions(ticket, fault, distractors or []),
     )

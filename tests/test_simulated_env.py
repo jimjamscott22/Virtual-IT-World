@@ -224,3 +224,23 @@ def test_restart_transport_runs_the_queue_down(env):
 
 def test_restart_transport_of_an_unknown_server_fails_cleanly(env):
     assert env.execute(Action(kind="mail.restart_transport", target="MER-WS-001")).ok is False
+
+
+def test_mail_rules_columns_stay_separated_by_a_long_forwarding_address(env):
+    """A fixed-width column silently collides with the next one once a value
+    outgrows it — which `mail.external_forwarding_rule`'s address does."""
+    env.world.mail.mailboxes["m.alvarez"].rules = [
+        MailRule(
+            name="RSS Subscriptions",
+            forward_to="svc.backup964@mailrelay-secure.example",
+            delete_after=True,
+        )
+    ]
+    rendered = env.read(Query(kind="mail.rules", target="m.alvarez")).rendered
+    header, row = rendered.splitlines()
+    # Whitespace still separates the values, and every column starts at the
+    # same offset as its own header.
+    assert row.split() == ["RSS", "Subscriptions",
+                           "svc.backup964@mailrelay-secure.example", "True"]
+    assert header.index("ForwardTo") == row.index("svc.backup964@mailrelay-secure.example")
+    assert header.index("DeleteMessage") == row.index("True")

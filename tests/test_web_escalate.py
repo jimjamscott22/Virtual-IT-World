@@ -86,3 +86,18 @@ def test_a_bounce_shows_the_tier2_turn_in_chat(client):
     ticket = session.queue.open_for(fault, fault.placements(session.env.world)[0])[0]
     r = c.post(f"/ticket/{ticket.id}/escalate", data={"note": "please fix"})
     assert "tier-2" in r.text.lower()
+
+
+def test_an_accepted_escalation_shows_what_tier2_said(client):
+    """`escalation_reason` is why the ticket was not the technician's. The
+    after-action is the only page they see after an accepted handoff, so it
+    has to carry it."""
+    c, session = client
+    fault = get_fault("mail.external_forwarding_rule")
+    ticket = session.queue.open_for(fault, fault.placements(session.env.world)[0])[0]
+    body = c.post(
+        f"/ticket/{ticket.id}/escalate",
+        data={"note": f"mail for {ticket.placement.key} is going to an outside address"},
+    ).text
+    assert fault.escalation_reason in body
+    assert "tier-2 accepted it" in body
