@@ -1,7 +1,7 @@
 # Phase 2a handoff
 
-Written at the end of the session that landed Tasks 15, 16 and 17 —
-every task in Phase 2a. Delete this file when
+Written at the end of the session that landed Tasks 15–17 (all of Phase 2a,
+merged in PR #10) and then Phase 2b's groundwork. Delete this file when
 Phase 2a is complete — it records *situational* state (branch, PR, what is
 half-done), not architecture. Architecture lives in `CLAUDE.md`.
 
@@ -10,9 +10,9 @@ half-done), not architecture. Architecture lives in `CLAUDE.md`.
 | | |
 | --- | --- |
 | Branch | `claude/game-dev-progress-review-i56yyx` |
-| Pull request | [#10](https://github.com/jimjamscott22/Virtual-IT-World/pull/10), draft, green |
+| Pull request | [#10](https://github.com/jimjamscott22/Virtual-IT-World/pull/10) — **merged**. Phase 2b groundwork is on a fresh branch off the merged `main`. |
 | Base | `main` — **merged in at `fa5bef0`**, which is PR #9's own implementation of Task 15. See the collision section below. |
-| Tests | 624 passing, 0 xfailed |
+| Tests | 912 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
 
 ## Health check done at the start of this session
@@ -235,6 +235,52 @@ overlap resolved deliberately rather than by picking a side:
 Also: `diagnostic_path()` gained `mail.mailbox` alongside `mail.rules`, since
 after change 1 the fault has two halves and `mail.rules` only shows one.
 
+## Phase 2b groundwork (this session, after 2a merged)
+
+The 2b plan listed three questions to settle *before* its Task 1. All three
+are now settled and implemented, deliberately before any 2b fault exists —
+each one would have been far more expensive afterwards.
+
+**The estate: 20 users, 10 workstations.** Append-only, so every existing row
+is byte-identical and not one fixed-seed test moved. Half the org shares a
+terminal, which keeps machine-placed faults from being user-placed faults
+under another name. Closed two gaps the growth exposed: HR had a share group
+with no share behind it (nobody in HR had a machine, so nothing ever mapped
+it), and Sales was borrowing Operations' printer. The suite went 660 → 880
+on its own — the conformance harness picks up new placements without being
+told.
+
+**A fixed eight-hour shift** (`session/shift.py`, `/shift`). Arrivals stop at
+17:00; open tickets stay workable. The report sums the store's own rows so it
+cannot disagree with the history page, except `unresolved`, which has to come
+from the live queue because a ticket nobody closed was never stored.
+
+**Difficulty drives scheduling — because something already did.** This is the
+one worth reading the commit for. The old scheduler drew uniformly from
+`(fault, placement)` pairs, which silently weighted every fault by how many
+targets it happened to have. Measured on the new estate: the catalog's only
+cascade had **one** placement and 0.8% of the draw; `mail.external_forwarding_rule`
+had twenty and 15.2%. The most interesting ticket in the game was the rarest,
+by accident. `choose_fault_and_placement()` now picks the fault first,
+weighted 5/4/3/2/1 by difficulty, then a placement uniformly: cascade 8.6%,
+forwarding 4.2%, and a 21/51/19/9 spread across difficulties 1–4.
+
+**Two things this changes for whoever writes the 2b faults:**
+
+1. `difficulty` is now load-bearing. It is a *frequency* decision as much as
+   a hardness one. Declaring 4 because a fault feels involved makes it
+   genuinely rare; declaring 1 on something fiddly makes it the ticket the
+   technician sees most.
+2. `placements()` no longer controls frequency, so a fault may attach to one
+   specific server without becoming unreachable. That is what makes
+   server-side and estate-wide 2b faults viable at all.
+
+**Three tests broke and none of them was seed churn.** They assumed one
+arrival is one ticket — only ever true because the cascade was nearly
+unreachable. At ~9% the fixed seed deals it and the assumption collapses. The
+tests were corrected, not the scheduler weakened; see the deviation table in
+`CLAUDE.md`. Expect more of this class as 2b adds cascade faults.
+
 ## Conventions this codebase expects
 
 Things that are easy to get wrong and are not obvious from the code alone.
@@ -335,6 +381,17 @@ Things that are easy to get wrong and are not obvious from the code alone.
     starting a task, check whether `main` has moved and whether an open PR
     already covers it.
 
+24. **One arrival is not one ticket.** A cascade deals several tickets from a
+    single `open_ticket()`/`tick()` call, sharing a `fault_id`, a `placement`
+    and a `cascade_id`. Any test that counts tickets where it means arrivals,
+    or calls `open_one()` a fixed number of times, is asserting that cascades
+    cannot happen. Three tests did exactly that and only survived because the
+    cascade was almost never dealt. Count arrivals by `cascade_id`, and prefer
+    `while tickets := queue.open_ticket():` over a fixed range.
+25. **`Fault.difficulty` decides how often a fault is dealt**, not just how
+    hard it is (`DIFFICULTY_WEIGHTS` in `session/queue.py`). Choose it with
+    frequency in mind.
+
 ## Open threads
 
 Not blocking Task 16, but real.
@@ -394,7 +451,7 @@ Not blocking Task 16, but real.
 ```bash
 git checkout claude/game-dev-progress-review-i56yyx
 uv sync
-uv run pytest          # expect 624 passed, 0 xfailed
+uv run pytest          # expect 912 passed, 0 xfailed
 ```
 
 Phase 2a's tasks are all complete. What is left is the Definition of Done's
