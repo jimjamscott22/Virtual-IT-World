@@ -8,6 +8,7 @@ from vitsc.env.simulated import SimulatedEnvironment
 from vitsc.persona.config import PersonaSettings, build_persona
 from vitsc.persona.models import Persona
 from vitsc.session.queue import SessionQueue
+from vitsc.session.shift import Shift, ShiftReport, build_shift_report
 from vitsc.session.store import Store
 from vitsc.tools.base import ToolLog
 from vitsc.world.seed import load_world
@@ -22,6 +23,7 @@ class AppSession(BaseModel):
     env: SimulatedEnvironment
     queue: SessionQueue
     store: Store
+    shift: Shift
     logs: dict[int, ToolLog] = {}
     started_at: datetime
     # Wall-clock (time.monotonic()) timestamp of the last time the simulated
@@ -47,12 +49,19 @@ class AppSession(BaseModel):
         # the environment decides, defaulting to the model-free template.
         if persona is None:
             persona = build_persona(PersonaSettings.from_env())
+        shift = Shift(started_at=now)
         return cls(
             env=env,
             queue=SessionQueue(
-                env=env, persona=persona, rng=Random(seed), now=now, distractor_count=3
+                env=env,
+                persona=persona,
+                rng=Random(seed),
+                now=now,
+                distractor_count=3,
+                shift_ends_at=shift.ends_at,
             ),
             store=store,
+            shift=shift,
             started_at=now,
         )
 
@@ -68,3 +77,16 @@ class AppSession(BaseModel):
 
     def log_for(self, ticket_id: int) -> ToolLog:
         return self.logs.setdefault(ticket_id, ToolLog())
+
+    def shift_report(self) -> ShiftReport:
+        """The whole shift, summed from what the store recorded.
+
+        `unresolved` comes from the live queue rather than the store, because
+        a ticket nobody closed was never written to it -- and those are
+        precisely the ones the report has to name.
+        """
+        return build_shift_report(
+            self.store.history(limit=1000),
+            self.store.domain_stats(),
+            unresolved=len(self.queue.active()),
+        )

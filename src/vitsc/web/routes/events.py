@@ -39,6 +39,11 @@ def build_payload(session: AppSession, now: datetime, arrivals: list) -> dict:
     return {
         "clock": now.isoformat(),
         "arrivals": [t.id for t in arrivals],
+        # The shift clock runs down here rather than in the browser, so a
+        # reconnecting tab picks up the real remaining time instead of
+        # restarting its own countdown.
+        "shift_remaining": session.shift.remaining(now),
+        "shift_over": session.shift.is_over(now),
         # Degradation starts mid-session, long after the page was rendered,
         # so the banner has to be driven from here rather than from the
         # initial render alone.

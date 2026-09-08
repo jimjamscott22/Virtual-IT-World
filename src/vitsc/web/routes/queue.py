@@ -21,12 +21,15 @@ def _ticket_or_404(request: Request, ticket_id: int):
 def index(request: Request):
     from vitsc.web.app import templates
     session = _session(request)
+    now = session.env.world.clock
     return templates.TemplateResponse(
         request, "index.html",
         {
             "tickets": session.queue.active(),
-            "now": session.env.world.clock,
+            "now": now,
             "degraded": session.degraded,
+            "shift_remaining": session.shift.remaining(now),
+            "shift_over": session.shift.is_over(now),
         },
     )
 

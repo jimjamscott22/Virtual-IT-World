@@ -26,13 +26,24 @@ users:
   - {sam: k.lindqvist, display_name: Kari Lindqvist,   department: Warehouse,  title: Warehouse Associate,  ou: "OU=Warehouse,DC=meridian,DC=local"}
   - {sam: j.abiodun,   display_name: Joy Abiodun,      department: HR,         title: HR Coordinator,       ou: "OU=HR,DC=meridian,DC=local"}
   - {sam: h.reyes,     display_name: Hector Reyes,     department: Operations, title: Night Dispatcher,     ou: "OU=Operations,DC=meridian,DC=local"}
+  # Phase 2b grew the estate from twelve to twenty. Everything above is
+  # unchanged on purpose: the org is meant to be stable across sessions, and
+  # a returning technician should still recognise the people they know.
+  - {sam: a.moreau,    display_name: Adele Moreau,     department: Accounting, title: Accounts Receivable,  ou: "OU=Accounting,DC=meridian,DC=local"}
+  - {sam: l.osei,      display_name: Linda Osei,       department: Operations, title: Dispatcher,           ou: "OU=Operations,DC=meridian,DC=local"}
+  - {sam: f.brennan,   display_name: Fiona Brennan,    department: Operations, title: Fleet Coordinator,    ou: "OU=Operations,DC=meridian,DC=local"}
+  - {sam: n.varga,     display_name: Nikola Varga,     department: Sales,      title: Sales Representative, ou: "OU=Sales,DC=meridian,DC=local"}
+  - {sam: g.pillai,    display_name: Gita Pillai,      department: Sales,      title: Sales Manager,        ou: "OU=Sales,DC=meridian,DC=local"}
+  - {sam: w.kowalski,  display_name: Wojciech Kowalski, department: Warehouse, title: Warehouse Associate,  ou: "OU=Warehouse,DC=meridian,DC=local"}
+  - {sam: m.tesfaye,   display_name: Mimi Tesfaye,     department: Warehouse,  title: Warehouse Associate,  ou: "OU=Warehouse,DC=meridian,DC=local"}
+  - {sam: v.santos,    display_name: Vitor Santos,     department: HR,         title: HR Generalist,        ou: "OU=HR,DC=meridian,DC=local"}
 
 groups:
-  ACC-Share-RW:   [m.alvarez, d.okafor, e.novak]
-  OPS-Share-RW:   [s.whitfield, t.nakamura, r.gallagher, h.reyes]
-  SALES-Share-RW: [p.mensah, c.donnelly]
-  WH-Share-RW:    [b.ferreira, k.lindqvist]
-  HR-Share-RW:    [j.abiodun]
+  ACC-Share-RW:   [m.alvarez, d.okafor, e.novak, a.moreau]
+  OPS-Share-RW:   [s.whitfield, t.nakamura, r.gallagher, h.reyes, l.osei, f.brennan]
+  SALES-Share-RW: [p.mensah, c.donnelly, n.varga, g.pillai]
+  WH-Share-RW:    [b.ferreira, k.lindqvist, w.kowalski, m.tesfaye]
+  HR-Share-RW:    [j.abiodun, v.santos]
 
 servers:
   - {hostname: MER-DC-01,  ip: 10.20.10.5, role: dc}
@@ -51,14 +62,27 @@ workstations:
   - {hostname: MER-WS-004, assigned_to: t.nakamura,  ip: 10.20.10.44, printers: [PRT-OPS-01]}
   - {hostname: MER-WS-005, assigned_to: p.mensah,    ip: 10.20.10.45, printers: [PRT-OPS-01]}
   - {hostname: MER-WS-006, assigned_to: b.ferreira,  ip: 10.20.10.46, printers: [PRT-WH-01]}
+  # Ten machines for twenty people: dispatch and the warehouse floor share
+  # terminals, so half the org has no workstation of its own. That is the
+  # normal shape of a freight company, and it keeps machine-placed faults
+  # from simply being user-placed faults under another name.
+  - {hostname: MER-WS-007, assigned_to: e.novak,     ip: 10.20.10.47, printers: [PRT-ACC-01]}
+  - {hostname: MER-WS-008, assigned_to: c.donnelly,  ip: 10.20.10.48, printers: [PRT-SALES-01]}
+  - {hostname: MER-WS-009, assigned_to: j.abiodun,   ip: 10.20.10.49, printers: [PRT-ACC-01]}
+  - {hostname: MER-WS-010, assigned_to: g.pillai,    ip: 10.20.10.50, printers: [PRT-SALES-01]}
 
 printers:
   - {name: PRT-ACC-01, host: MER-PRT-01, model: "HP LaserJet M507", correct_driver: "HP LaserJet M507 PCL-6"}
   - {name: PRT-OPS-01, host: MER-PRT-01, model: "HP LaserJet M507", correct_driver: "HP LaserJet M507 PCL-6"}
   - {name: PRT-WH-01,  host: MER-PRT-01, model: "Zebra ZT411",      correct_driver: "Zebra ZT411 ZPL"}
+  - {name: PRT-SALES-01, host: MER-PRT-01, model: "HP LaserJet M507", correct_driver: "HP LaserJet M507 PCL-6"}
 
 shares:
   - {unc: "\\\\MER-FS-01\\Accounting", host: MER-FS-01, required_group: ACC-Share-RW,   drive_letter: "S:"}
   - {unc: "\\\\MER-FS-01\\Operations", host: MER-FS-01, required_group: OPS-Share-RW,   drive_letter: "S:"}
   - {unc: "\\\\MER-FS-01\\Sales",      host: MER-FS-01, required_group: SALES-Share-RW, drive_letter: "S:"}
   - {unc: "\\\\MER-FS-01\\Warehouse",  host: MER-FS-01, required_group: WH-Share-RW,    drive_letter: "S:"}
+  # HR-Share-RW existed as a group from the start but had no share behind it,
+  # so an HR workstation would have mapped nothing. Giving j.abiodun a machine
+  # made that gap reachable.
+  - {unc: "\\\\MER-FS-01\\HR",         host: MER-FS-01, required_group: HR-Share-RW,    drive_letter: "S:"}

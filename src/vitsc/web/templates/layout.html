@@ -3,7 +3,20 @@
 <header class="topbar">
   <h1>Virtual IT Support Center</h1>
   <p class="org-name">Meridian Freight Co.</p>
+  {# Driven by the SSE tick, like the SLA countdowns: the shift runs down on
+     the simulated clock, so the server is the only thing that knows how much
+     of it is left. #}
+  <p class="shift-clock"><span id="shift-remaining">{{ shift_remaining }}</span> min left in shift
+    · <a href="/shift">shift summary</a></p>
 </header>
+{# Always rendered, hidden until the clock runs out — the same reason the
+   degraded banner is: the end of the shift arrives mid-session and there may
+   never be another full page load to reveal it. #}
+<div id="shift-banner" class="banner banner-shift"
+     {% if not shift_over %}hidden{% endif %}>
+  End of shift. No new tickets will arrive — finish what is open, then
+  <a href="/shift">see how the shift went</a>.
+</div>
 {# Always rendered so the SSE handler in base.html can reveal it the moment
    the model goes away mid-session, rather than only on the next full page
    load — which, in an HTMX app, may never come. #}

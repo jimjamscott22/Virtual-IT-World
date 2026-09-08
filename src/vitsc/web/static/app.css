@@ -79,3 +79,59 @@ body {
 }
 
 .banner-degraded[hidden] { display: none; }
+
+/* --- the fixed shift ---------------------------------------------------
+   The clock in the header and the banner that replaces it when the shift
+   runs out. Both are driven by the SSE tick in base.html, so like the
+   degraded banner they have to be styled for a state that arrives
+   mid-session rather than at page load. */
+.shift-clock {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.shift-clock a { color: var(--accent); }
+
+.banner-shift {
+  padding: 0.6rem 1.5rem;
+  background: var(--warn-bg);
+  border-bottom: 1px solid var(--warn-border);
+  color: var(--warn-text);
+  font-size: 0.85rem;
+}
+
+.banner-shift[hidden] { display: none; }
+.banner-shift a { color: inherit; }
+
+.shift-page {
+  padding: 1.5rem;
+  max-width: 640px;
+}
+
+.shift-window { color: var(--muted); font-size: 0.9rem; margin-top: 0; }
+
+.shift-summary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1rem;
+  margin: 1rem 0;
+}
+
+.shift-summary dt { color: var(--muted); }
+.shift-summary dd { margin: 0; }
+
+.shift-domains {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.shift-domains th, .shift-domains td {
+  text-align: left;
+  padding: 0.35rem 0.75rem 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.shift-domains th { color: var(--muted); font-weight: normal; font-size: 0.85rem; }
+.shift-links { margin-top: 1.5rem; font-size: 0.9rem; }
+.shift-links a { color: var(--accent); }

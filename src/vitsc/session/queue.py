@@ -23,6 +23,52 @@ MAX_ACTIVE = 4
 ARRIVAL_MINUTES = 10
 CASCADE_MAX = 3
 
+# How much likelier an easy fault is than a hard one, per step of difficulty.
+#
+# A real queue is mostly routine with the occasional hard one, and that shape
+# is what trains triage: the difficulty-4 ticket has to be *rare enough to be
+# surprising*, or the technician stops treating "probably a password" as the
+# sane opening guess. A flat draw over a thirty-fault catalog would make most
+# of a shift difficulty 4-5, which is neither realistic nor good practice.
+DIFFICULTY_WEIGHTS = {1: 5, 2: 4, 3: 3, 4: 2, 5: 1}
+
+
+def difficulty_weight(fault: Fault) -> int:
+    """How often this fault should come up relative to the others."""
+    return DIFFICULTY_WEIGHTS.get(fault.difficulty, 1)
+
+
+def choose_fault_and_placement(
+    candidates: list[tuple[Fault, Placement]], rng: Random
+) -> tuple[Fault, Placement]:
+    """Pick the fault first, then one of its placements.
+
+    Choosing uniformly from `(fault, placement)` pairs looks fair and is not:
+    it weights every fault by how many valid targets it happens to have, which
+    is an accident of the estate rather than a decision about the drill. On the
+    twenty-user estate that gave `mail.external_forwarding_rule` twenty
+    placements and `print.server_spooler_stopped` — the catalog's only
+    cascade, and its most interesting ticket — exactly one, so the cascade was
+    dealt twenty times less often than a mail fault. Nobody chose that.
+
+    Picking the fault first makes each fault's share independent of its
+    placement count, and lets `difficulty_weight` be the *only* thing that
+    decides how often a fault comes up.
+    """
+    # `dict` rather than a set: insertion order is the caller's order, which
+    # keeps a given rng seed reproducible.
+    by_fault: dict[str, list[Placement]] = {}
+    faults: dict[str, Fault] = {}
+    for fault, placement in candidates:
+        by_fault.setdefault(fault.id, []).append(placement)
+        faults[fault.id] = fault
+
+    fault_ids = list(by_fault)
+    chosen = rng.choices(
+        fault_ids, weights=[difficulty_weight(faults[fid]) for fid in fault_ids], k=1
+    )[0]
+    return faults[chosen], rng.choice(by_fault[chosen])
+
 
 def seed_distractors(world: World, rng: Random, count: int) -> list[tuple[str, Placement]]:
     """Apply `count` distinct distractors before the first baseline capture.
@@ -112,11 +158,21 @@ class SessionQueue:
         persona: Persona,
         rng: Random,
         now: datetime,
+        # Keyword-only: both are optional session configuration rather than
+        # part of the queue's identity, and every caller already passed them
+        # by name. Spelling that out keeps the positional list at four.
+        *,
         distractor_count: int = 0,
+        shift_ends_at: datetime | None = None,
     ) -> None:
         self.env = env
         self.persona = persona
         self.rng = rng
+        # When the shift ends, arrivals stop. Only `tick()` honours this --
+        # `open_for()` and `open_cascade()` are explicit hooks and stay usable,
+        # and tickets already open stay workable, the way a real shift's last
+        # call does not evaporate at five o'clock.
+        self.shift_ends_at = shift_ends_at
         self.tickets: list[Ticket] = []
         # Seeded before the baseline is captured, so this noise is inherited
         # world state rather than the technician's own collateral damage.
@@ -228,7 +284,7 @@ class SessionQueue:
         if not candidates:
             return []
 
-        fault, placement = self.rng.choice(candidates)
+        fault, placement = choose_fault_and_placement(candidates, self.rng)
         return self._open(fault, placement)
 
     def open_one(self) -> Ticket | None:
@@ -248,8 +304,14 @@ class SessionQueue:
         """Open a named fault's cascade directly, at its first placement."""
         return self.open_for(fault, fault.placements(self.env.world)[0])
 
+    def shift_is_over(self, now: datetime) -> bool:
+        return self.shift_ends_at is not None and now >= self.shift_ends_at
+
     def tick(self, now: datetime) -> list[Ticket]:
-        """Open new tickets as the arrival interval elapses."""
+        """Open new tickets as the arrival interval elapses, until the shift
+        ends."""
+        if self.shift_is_over(now):
+            return []
         arrivals: list[Ticket] = []
         while now - self._last_arrival >= timedelta(minutes=ARRIVAL_MINUTES):
             self._last_arrival += timedelta(minutes=ARRIVAL_MINUTES)

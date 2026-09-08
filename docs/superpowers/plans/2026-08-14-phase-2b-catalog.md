@@ -91,21 +91,46 @@ Alongside the faults:
   faults after 2b, that inconsistency stops being cosmetic. Decide it early
   in 2b, not late.
 
-## Open questions to settle before Task 1
+## Settled before Task 1
 
-- **Does the estate grow?** Twelve users and six workstations is small for
-  thirty faults — several candidates above (duplicate static IP, a stuck
-  print job) want more machines to be interesting. Growing `company.yaml` is
-  cheap; growing it *after* faults are written is not, because
-  `placements()` counts change and every fixed-seed test shifts with them.
-  Settle this first.
-- **Does difficulty drive scheduling?** `Fault.difficulty` is declared by
-  every fault and read by `priority_for` only. With thirty faults, a session
-  that deals difficulty 1 and difficulty 5 with equal probability may be the
-  wrong drill.
-- **Does the session get an end?** There is no "shift over" — the queue deals
-  forever. Thirty faults makes a fixed-length shift with a summary a
-  plausible shape.
+All three were decided and implemented before any 2b fault was written —
+which was the point of asking them first.
+
+**The estate grew: 20 users, 10 workstations.** Twelve and six was thin for a
+thirty-fault catalog, and several candidates below (a duplicate static IP, a
+stuck print job) need more machines to be interesting at all. Done
+append-only, so every existing row is byte-identical and no fixed-seed test
+moved. Twenty people share ten machines, which keeps a machine-placed fault
+from being a user-placed fault under another name. Two gaps closed on the
+way: HR had a share group with no share behind it, and Sales was borrowing
+Operations' printer.
+
+**A session ends: a fixed eight-hour shift** (`session/shift.py`). Simulated
+09:00–17:00, which is eight real minutes at one sim-minute per second. What
+ends is the *arrivals*; tickets already open stay workable. `/shift` sums the
+day from the store's own rows — closed, correct, within SLA, collateral,
+still open — so it cannot disagree with the history page.
+
+**Difficulty drives scheduling, because something already did.** The old
+scheduler drew uniformly from `(fault, placement)` pairs, which weighted
+every fault by how many targets it happened to have: the catalog's only
+cascade has one placement and a mailbox fault has twenty, so the cascade was
+dealt twenty times less often. `choose_fault_and_placement()` now picks the
+fault first, weighted 5/4/3/2/1 by difficulty, then a placement uniformly.
+Difficulty is the only thing that decides frequency, and the resulting mix is
+roughly 21/51/19/9 across difficulties 1–4 — mostly routine, with the hard
+ticket rare enough to stay surprising.
+
+**What this means for 2b's faults.** Two consequences worth holding onto
+while writing them:
+
+- A fault's `difficulty` is now load-bearing, not decoration. Declaring 4
+  because a fault *feels* involved will make it genuinely rare; declaring 1
+  on something fiddly will make it the ticket the technician sees most.
+  Pick it as a frequency decision as much as a hardness one.
+- `placements()` no longer controls frequency, so a fault may legitimately
+  attach to one specific server without becoming unreachable. That is what
+  makes server-side and estate-wide 2b faults viable.
 
 ## Definition of Done
 
@@ -121,6 +146,10 @@ Alongside the faults:
 - [ ] Mail invariants land, with a fault that trips them when fixed wrongly.
 - [ ] The escalation-disposition inconsistency is resolved, one way or the
       other, deliberately.
+- [ ] Every fault's `difficulty` chosen as a frequency decision, not just a
+      hardness one — see "Settled before Task 1" above.
+- [ ] A full eight-hour shift is workable end to end, and the `/shift`
+      summary reads correctly for a good shift and a bad one.
 - [ ] `uv run pytest` green with nothing on localhost; `uv run pylint src`
       and `tests` at 10.00/10.
 - [ ] A full ticket can be worked in the browser in all five domains, and a
