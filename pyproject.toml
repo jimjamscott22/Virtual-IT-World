@@ -40,12 +40,15 @@ ignore-paths = ["^\\.venv/.*$"]
 [tool.pylint.design]
 # All three were one over pylint's default when raised (`world/seed.py` at 16
 # locals, `tools/base.py` at 6 arguments). `SessionQueue`'s attribute count
-# moved twice in Phase 2a — Task 4 added `distractors` (8), Task 5 added
-# `_next_cascade_id` (9) — raised a little each time rather than disabled, so
-# the check still catches genuine sprawl.
+# moved three times — Phase 2a Task 4 added `distractors` (8), Task 5 added
+# `_next_cascade_id` (9), and Phase 2b's fixed shift added `shift_ends_at`
+# (10) — raised a little each time rather than disabled, so the check still
+# catches genuine sprawl. The matching too-many-positional-arguments finding
+# was fixed rather than bumped: the queue's two optional settings are
+# keyword-only, which is better API design regardless of the linter.
 max-locals = 20
 max-args = 8
-max-attributes = 9
+max-attributes = 10
 
 [tool.pylint."messages control"]
 # Every entry here is a check this project has deliberately decided against,

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Shift summary — Virtual IT Support Center{% endblock %}
+{% block body %}
+<header class="topbar">
+  <h1>Virtual IT Support Center</h1>
+  <p class="org-name">Meridian Freight Co.</p>
+</header>
+<main class="shift-page">
+  <h2>{{ "Shift over" if over else "Shift so far" }}</h2>
+  <p class="shift-window">
+    {{ shift.started_at.strftime("%H:%M") }}–{{ shift.ends_at.strftime("%H:%M") }}
+    ·
+    {% if over %}
+      all {{ shift.minutes // 60 }} hours worked
+    {% else %}
+      {{ remaining }} min left
+    {% endif %}
+  </p>
+
+  <p class="verdict {{ 'verdict-good' if report.collateral == 0 and report.closed and report.accuracy == 1.0 else 'verdict-bad' }}">
+    {{ report.verdict }}
+  </p>
+
+  <dl class="shift-summary">
+    <dt>Closed</dt><dd>{{ report.closed }}</dd>
+    <dt>Correct</dt><dd>{{ report.correct }} ({{ "%.0f"|format(report.accuracy * 100) }}%)</dd>
+    <dt>Within SLA</dt><dd>{{ report.within_sla }} ({{ "%.0f"|format(report.sla_rate * 100) }}%)</dd>
+    <dt>Escalated</dt><dd>{{ report.escalated }}</dd>
+    <dt>Caused collateral damage</dt><dd>{{ report.collateral }}</dd>
+    <dt>Still open</dt><dd>{{ report.unresolved }}</dd>
+  </dl>
+
+  {% if report.by_domain %}
+  <h3>By domain</h3>
+  <table class="shift-domains">
+    <thead><tr><th>Domain</th><th>Closed</th><th>Correct</th><th>Accuracy</th></tr></thead>
+    <tbody>
+      {% for stat in report.by_domain %}
+      <tr>
+        <td>{{ stat.domain }}</td>
+        <td>{{ stat.total }}</td>
+        <td>{{ stat.correct }}</td>
+        <td>{{ "%.0f"|format(stat.accuracy * 100) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <p class="shift-links">
+    <a href="/">Back to the queue</a> · <a href="/history">Ticket history</a>
+  </p>
+</main>
+{% endblock %}

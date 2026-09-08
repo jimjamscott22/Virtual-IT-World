@@ -112,11 +112,21 @@ class SessionQueue:
         persona: Persona,
         rng: Random,
         now: datetime,
+        # Keyword-only: both are optional session configuration rather than
+        # part of the queue's identity, and every caller already passed them
+        # by name. Spelling that out keeps the positional list at four.
+        *,
         distractor_count: int = 0,
+        shift_ends_at: datetime | None = None,
     ) -> None:
         self.env = env
         self.persona = persona
         self.rng = rng
+        # When the shift ends, arrivals stop. Only `tick()` honours this --
+        # `open_for()` and `open_cascade()` are explicit hooks and stay usable,
+        # and tickets already open stay workable, the way a real shift's last
+        # call does not evaporate at five o'clock.
+        self.shift_ends_at = shift_ends_at
         self.tickets: list[Ticket] = []
         # Seeded before the baseline is captured, so this noise is inherited
         # world state rather than the technician's own collateral damage.
@@ -248,8 +258,14 @@ class SessionQueue:
         """Open a named fault's cascade directly, at its first placement."""
         return self.open_for(fault, fault.placements(self.env.world)[0])
 
+    def shift_is_over(self, now: datetime) -> bool:
+        return self.shift_ends_at is not None and now >= self.shift_ends_at
+
     def tick(self, now: datetime) -> list[Ticket]:
-        """Open new tickets as the arrival interval elapses."""
+        """Open new tickets as the arrival interval elapses, until the shift
+        ends."""
+        if self.shift_is_over(now):
+            return []
         arrivals: list[Ticket] = []
         while now - self._last_arrival >= timedelta(minutes=ARRIVAL_MINUTES):
             self._last_arrival += timedelta(minutes=ARRIVAL_MINUTES)

@@ -26,6 +26,14 @@
               : `SLA in ${t.remaining} min`;
           }
         }
+        const shiftClock = document.getElementById("shift-remaining");
+        if (shiftClock) {
+          shiftClock.textContent = payload.shift_remaining;
+        }
+        const shiftBanner = document.getElementById("shift-banner");
+        if (shiftBanner) {
+          shiftBanner.hidden = !payload.shift_over;
+        }
         const banner = document.getElementById("degraded-banner");
         if (banner) {
           banner.dataset.degraded = payload.degraded ? "true" : "false";
