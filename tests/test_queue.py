@@ -40,12 +40,19 @@ def test_ticket_text_comes_from_the_persona(queue):
 
 
 def test_the_reporter_is_the_person_the_fault_actually_affects(queue):
-    """User, machine and printer placements must all resolve to a real person."""
-    for _ in range(MAX_ACTIVE):
-        ticket = queue.open_one()
-        assert ticket.persona.name in {
-            u.display_name for u in queue.env.world.org.users.values()
-        }
+    """User, machine and printer placements must all resolve to a real person.
+
+    Deals until the queue is full rather than a fixed number of times: a
+    cascade fills three slots in one call, so `MAX_ACTIVE` calls to
+    `open_one()` would run past the end and get `None`.
+    """
+    names = {u.display_name for u in queue.env.world.org.users.values()}
+    dealt = 0
+    while tickets := queue.open_ticket():
+        for ticket in tickets:
+            assert ticket.persona.name in names
+            dealt += 1
+    assert dealt == MAX_ACTIVE
 
 
 def test_baseline_is_captured_after_the_fault_is_applied(queue):
@@ -98,10 +105,19 @@ def test_closing_frees_a_slot(queue):
 
 
 def test_no_duplicate_fault_and_placement_while_active(queue):
+    """One arrival, one fault+placement — counted per *arrival*, not per ticket.
+
+    A cascade is several tickets that deliberately share a fault and a
+    placement, so comparing against the ticket count asserts that cascades
+    cannot happen. What the scheduler actually promises is that it never deals
+    the same fault+placement as two separate arrivals.
+    """
     for _ in range(MAX_ACTIVE):
         queue.open_ticket()
-    seen = {(t.fault_id, t.placement.key) for t in queue.active()}
-    assert len(seen) == len(queue.active())
+    active = queue.active()
+    arrivals = {t.cascade_id or f"solo-{t.id}" for t in active}
+    seen = {(t.fault_id, t.placement.key) for t in active}
+    assert len(seen) == len(arrivals)
 
 
 def test_an_unfixed_fault_is_not_handed_out_again(queue):
@@ -128,10 +144,17 @@ def test_ids_are_unique_and_get_finds_them(queue):
 
 
 def test_tick_opens_a_ticket_once_the_interval_elapses(queue):
+    """The arrival *interval* is what this pins down.
+
+    Not the ticket count: one arrival is several tickets when the fault dealt
+    is a cascade, so counting tickets here would quietly assert that the
+    scheduler never deals one.
+    """
     queue.open_ticket()
     assert queue.tick(NOW + timedelta(minutes=1)) == []
-    arrivals = queue.tick(NOW + timedelta(minutes=12))
-    assert len(arrivals) == 1
+    assert queue.tick(NOW + timedelta(minutes=12)) != []
+    # Same instant again: the interval has not elapsed a second time.
+    assert queue.tick(NOW + timedelta(minutes=12)) == []
 
 
 def test_tick_does_not_backfill_a_long_gap_past_max_active(queue):
@@ -176,3 +199,89 @@ def test_distractors_are_off_by_default_for_deterministic_tests():
     env = SimulatedEnvironment(load_world())
     queue = SessionQueue(env=env, persona=TemplatePersona(), rng=Random(7), now=NOW)
     assert queue.distractors == []
+
+
+# --- how the scheduler picks --------------------------------------------------
+
+
+def _candidate_pairs():
+    from vitsc.faults.registry import all_faults
+    world = load_world()
+    return [(f, p) for f in all_faults() for p in f.placements(world)], world
+
+
+def test_difficulty_weights_cover_every_difficulty_a_fault_may_declare():
+    """`test_catalog.py` allows 1-5; a gap here would silently fall back to 1."""
+    from vitsc.faults.registry import all_faults
+    from vitsc.session.queue import DIFFICULTY_WEIGHTS
+    assert set(DIFFICULTY_WEIGHTS) == {1, 2, 3, 4, 5}
+    for fault in all_faults():
+        assert fault.difficulty in DIFFICULTY_WEIGHTS
+
+
+def test_easier_faults_are_dealt_more_often():
+    """A real queue is mostly routine. The hard ticket has to stay rare enough
+    to be surprising, or 'probably a password' stops being the sane guess."""
+    from collections import Counter
+    from vitsc.session.queue import choose_fault_and_placement
+    candidates, _ = _candidate_pairs()
+    rng = Random(0)
+    seen = Counter(
+        choose_fault_and_placement(candidates, rng)[0].difficulty for _ in range(20000)
+    )
+    total = sum(seen.values())
+    assert seen[1] / total > seen[3] / total > seen[4] / total
+    # Difficulty 4 is the rarest thing in the catalog, by a clear margin.
+    assert seen[4] / total < 0.15
+
+
+def test_placement_count_does_not_decide_how_often_a_fault_comes_up():
+    """The bug this scheduler exists to fix.
+
+    Drawing uniformly from (fault, placement) pairs weighted every fault by
+    how many valid targets it happened to have. `print.server_spooler_stopped`
+    has one placement and `mail.external_forwarding_rule` has twenty, so the
+    catalog's only cascade was dealt twenty times less often than a mail
+    fault — an accident of the estate, not a decision about the drill.
+    """
+    from collections import Counter
+    from vitsc.session.queue import choose_fault_and_placement
+    candidates, world = _candidate_pairs()
+    rng = Random(0)
+    drawn = Counter(
+        choose_fault_and_placement(candidates, rng)[0].id for _ in range(20000)
+    )
+    cascade = get_fault("print.server_spooler_stopped")
+    forwarding = get_fault("mail.external_forwarding_rule")
+    assert len(cascade.placements(world)) == 1
+    assert len(forwarding.placements(world)) == 20
+    # One placement versus twenty, yet the cascade is dealt *more* often —
+    # because it is the easier fault, which is the only thing that should
+    # decide this.
+    assert drawn[cascade.id] > drawn[forwarding.id]
+
+
+def test_every_placement_of_the_chosen_fault_stays_reachable():
+    from vitsc.session.queue import choose_fault_and_placement
+    candidates, world = _candidate_pairs()
+    fault = get_fault("ad.account_locked")
+    only_this = [(f, p) for f, p in candidates if f.id == fault.id]
+    rng = Random(0)
+    keys = {choose_fault_and_placement(only_this, rng)[1].key for _ in range(400)}
+    assert keys == {p.key for p in fault.placements(world)}
+
+
+def test_a_single_candidate_is_returned_unchanged():
+    from vitsc.session.queue import choose_fault_and_placement
+    candidates, _ = _candidate_pairs()
+    one = candidates[:1]
+    assert choose_fault_and_placement(one, Random(0)) == one[0]
+
+
+def test_the_choice_is_reproducible_for_a_seed():
+    """Fixed-seed tests across the suite depend on this."""
+    from vitsc.session.queue import choose_fault_and_placement
+    candidates, _ = _candidate_pairs()
+    first = [choose_fault_and_placement(candidates, Random(4)) for _ in range(5)]
+    again = [choose_fault_and_placement(candidates, Random(4)) for _ in range(5)]
+    assert [(f.id, p.key) for f, p in first] == [(f.id, p.key) for f, p in again]
