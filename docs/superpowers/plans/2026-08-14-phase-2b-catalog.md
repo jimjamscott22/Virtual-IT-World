@@ -132,6 +132,228 @@ while writing them:
   attach to one specific server without becoming unreachable. That is what
   makes server-side and estate-wide 2b faults viable.
 
+## Tasks
+
+### Task 1: Stale cached credentials after a long absence from the network
+
+The identity domain's first candidate ("expired cached credentials on a
+laptop"), and the cheapest possible 2b task: it needs no new query/action
+kind, no new `World` field, and no new tool surface. Everything it touches —
+`machine.services` (read) and `machine.restart_service` (write) — already
+exists and is already reachable through `remote services`, `ps Get-Service`,
+and `ps Restart-Service`. That makes it a deliberate choice for Task 1: prove
+the 2b groundwork (difficulty-weighted scheduling, the bigger estate) works
+end to end before taking on a task that needs new plumbing (the printing
+domain's stuck-queue candidate is the one flagged in the domain table as
+needing that).
+
+**The mechanism.** A workstation's cached domain sign-in lets a user reach
+their desktop even when the machine's own channel to the domain controller is
+broken — which is exactly what happens after an extended absence (working
+from home, a long trip) if that channel needs to be re-established on return.
+The user gets to their desktop fine, but everything that depends on live
+domain authentication — mapped drives, printers, Outlook — fails at once.
+Modelled as a `"Netlogon"` entry in the machine's existing `services` dict
+(the same field `print.spooler_stopped` already uses for `"Spooler"`), gated
+and cleared exactly the way that fault is: `ServiceState.STOPPED` /
+`machine.restart_service`.
+
+This is the differential against all four existing identity faults: `ad
+get-user` on the affected sam comes back completely clean — not locked, not
+expired, not disabled — because the account itself was never touched. The
+technician has to notice that the account checks out and look at the machine
+instead. It is also the first identity-domain fault placed on a `machine`
+rather than a `user`, the same shape `print.spooler_stopped` and
+`endpoint.disk_full` already use for a workstation-attached fault.
+
+**Files:**
+- Modify: `src/vitsc/faults/catalog/identity.py`
+- Create: `src/vitsc/data/kb/identity-signed-in-but-cut-off.md`
+- Modify: `tests/test_catalog.py` (`test_v1_catalog_is_complete`)
+- Modify: `tests/test_end_to_end.py` (`HTTP_FIX`, `TARGET_FIELD`)
+
+**Interfaces:**
+- Consumes: `machine.services` / `machine.restart_service` (existing, from
+  Phase 1's printing work), reachable today via `remote services` /
+  `remote inspect`, `ps Get-Service` / `ps Restart-Service`.
+- Produces: `ad.cached_credentials_expired`.
+
+No new specifics test file: nothing here is a cascade, an escalate-correct
+fault, or a fault with more than one fix path — the three reasons the
+existing identity faults (all four of which also have no specifics file)
+would need one. Conformance coverage from `tests/test_catalog.py`'s
+parametrized harness is the whole test surface, per Constraint 5.
+
+- [ ] **Step 1: Write the fault**
+
+Add to `src/vitsc/faults/catalog/identity.py`, alongside a local
+`_workstations()` placement helper (the same shape `network.py` and
+`endpoint.py` each already define privately for their own machine-placed
+faults — no shared util to extract, that duplication is this codebase's
+existing convention):
+
+```python
+def _workstations(world: World) -> list[Placement]:
+    return [
+        Placement(kind="machine", key=m.hostname)
+        for m in world.machines.values()
+        if m.assigned_to is not None
+    ]
+
+
+class CachedCredentialsExpired(FaultBase):
+    id = "ad.cached_credentials_expired"
+    domain = "identity"
+    difficulty = 2
+    canonical_title = (
+        "Workstation's cached domain credentials are stale after an "
+        "extended absence from the corporate network"
+    )
+    supported_backends = frozenset({"simulated", "winrm"})
+    leak_terms = ["cached", "cache", "trust relationship", "secure channel", "netlogon"]
+    escalation_is_correct = False
+    kb_articles = ["identity-signed-in-but-cut-off"]
+
+    def placements(self, world: World) -> list[Placement]:
+        return _workstations(world)
+
+    def apply(self, world: World, at: Placement, rng: Random) -> None:
+        world.machines[at.key].services["Netlogon"] = ServiceState.STOPPED
+
+    def is_present(self, world: World, at: Placement) -> bool:
+        return world.machines[at.key].services.get("Netlogon") is not ServiceState.RUNNING
+
+    def symptoms(self, world: World, at: Placement) -> UserSymptoms:
+        return UserSymptoms(
+            opening="I can log in fine, but none of my shared drives will "
+            "connect, my printer's missing, and Outlook won't stay signed in.",
+            onset="I've been working from home for the last few weeks and "
+            "only came back into the office this morning.",
+            scope="Just me — the person next to me hasn't had any problems.",
+            error_text="Outlook keeps asking for my password, I type it in "
+            "correctly, and it just asks again. My drives say the network "
+            "path can't be found.",
+        )
+
+    def diagnostic_path(self, at: Placement) -> list[Query]:
+        return [Query(kind="machine.services", target=at.key, args={"service": "Netlogon"})]
+
+    def canonical_resolutions(self) -> list[ResolutionPath]:
+        return [
+            ResolutionPath(
+                label="Restart the Netlogon service",
+                actions=[
+                    Action(
+                        kind="machine.restart_service",
+                        target=PLACEHOLDER,
+                        args={"service": "Netlogon"},
+                    ),
+                ],
+            ),
+        ]
+
+
+register(CachedCredentialsExpired())
+```
+
+Needs `ServiceState` added to the module's `vitsc.world.models` import
+(`identity.py` doesn't import it today — only `network.py`/`endpoint.py` do).
+
+- [ ] **Step 2: Run the conformance harness**
+
+Run: `uv run pytest tests/test_catalog.py -v`
+Expected: the new fault conforms across every workstation placement —
+absent-then-present, `machine.services` actually differs between clean and
+broken, the restart resolution clears it with no invariant violations, and
+`symptoms()` contains none of its own `leak_terms` and none of `JARGON`. If
+the symptom check trips, rewrite the symptom text, not the check.
+
+- [ ] **Step 3: The KB article**
+
+`src/vitsc/data/kb/identity-signed-in-but-cut-off.md` — a genuinely new
+article, not a ninth link to `identity-cannot-sign-in`: that article's whole
+premise is "the user can't get in at all," which is false here. Per the
+plan's own note under "Alongside the faults," this domain earns a second
+article precisely because this failure shape doesn't fit the first one.
+
+```markdown
+---
+id: identity-signed-in-but-cut-off
+title: Signed in locally but nothing else works
+domain: identity
+keywords: [signed in, drives, shares, printer, outlook, network path, cached credentials]
+---
+
+A user who reaches their desktop at all is not having the same failure as a
+user who can't sign in. When the desktop loads but every drive, printer, or
+mailbox connection fails at once, the account itself is rarely the problem —
+start elsewhere.
+
+## Check
+
+1. `ad get-user -sam <sam>` first, even though it looks unrelated —
+   confirming the account is enabled, not locked, and not expired rules out
+   the whole "can't sign in" family in one call. If all three come back
+   clean, the account was never the problem.
+2. `remote services -host <workstation>` — a machine can be showing a
+   perfectly normal desktop and still have the service that keeps it talking
+   to the domain stopped. Compare against a machine that isn't having the
+   problem.
+3. Ask how long the machine has been off the corporate network. An extended
+   absence — working from home, a long trip — is the most common trigger for
+   this class of problem.
+
+## Notes
+
+A user who signed in successfully before the problem started can keep
+working from the locally cached copy of their profile even while the
+machine's own connection to the domain is broken — which is exactly why the
+account checks out clean in step 1.
+```
+
+- [ ] **Step 4: HTTP fix table**
+
+`tests/test_end_to_end.py`:
+
+```python
+HTTP_FIX = {
+    ...
+    "ad.cached_credentials_expired": ("ps", "Restart-Service"),
+}
+
+TARGET_FIELD = {
+    ...
+    "Restart-Service": "host",
+}
+```
+
+`ps Restart-Service` already dispatches to `machine.restart_service` and is
+machine-scoped (`target_key` returns `args["host"]`); the bound action's own
+`args={"service": "Netlogon"}` passes straight through `query_args` unchanged
+(it only renames a `name` arg to `service`, and there is no `name` arg here
+to rename), so no tool code changes at all — confirmed by re-reading
+`PowerShellConsole.query_args` rather than assumed.
+
+- [ ] **Step 5: The roster test**
+
+`tests/test_catalog.py:test_v1_catalog_is_complete` — add
+`"ad.cached_credentials_expired"` to the hardcoded id set. (Not
+`test_exactly_three_faults_are_escalate_correct` — this fault isn't one.)
+
+- [ ] **Step 6: Run the full suite**
+
+Run: `uv run pytest`
+Expected: all green, fourteen faults registered. Also `uv run pylint src
+tests` (two-command form per `CLAUDE.md`) at 10.00/10.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add -A && git commit -m "feat(faults): add the identity domain's cached-credentials fault"
+```
+
+---
+
 ## Definition of Done
 
 - [ ] 30+ faults registered, conforming across every placement, in all five

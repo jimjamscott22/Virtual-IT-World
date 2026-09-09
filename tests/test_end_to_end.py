@@ -17,6 +17,7 @@ from vitsc.web.deps import AppSession
 HTTP_FIX = {
     "ad.account_locked": ("ad", "unlock"),
     "ad.password_expired": ("ad", "reset-password"),
+    "ad.cached_credentials_expired": ("ps", "Restart-Service"),
     "share.group_membership_removed": ("ad", "add-member"),
     "net.static_dns_misconfig": ("net", "set-dns"),
     "net.no_dhcp_lease": ("net", "renew"),
@@ -34,6 +35,7 @@ HTTP_FIX = {
 TARGET_FIELD = {
     "unlock": "sam",
     "reset-password": "sam",
+    "Restart-Service": "host",
     "add-member": "group",
     "set-dns": "from",
     "renew": "from",

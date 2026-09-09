@@ -12,13 +12,21 @@ from vitsc.faults.base import (
     UserSymptoms,
 )
 from vitsc.faults.registry import register
-from vitsc.world.models import World
+from vitsc.world.models import ServiceState, World
 
 
 def _staff_with_machines(world: World) -> list[Placement]:
     """Users who make plausible victims: ordinary staff with a workstation."""
     return [
         Placement(kind="user", key=m.assigned_to)
+        for m in world.machines.values()
+        if m.assigned_to is not None
+    ]
+
+
+def _workstations(world: World) -> list[Placement]:
+    return [
+        Placement(kind="machine", key=m.hostname)
         for m in world.machines.values()
         if m.assigned_to is not None
     ]
@@ -222,7 +230,69 @@ class ShareGroupRemoved(FaultBase):
         ]
 
 
+class CachedCredentialsExpired(FaultBase):
+    """A workstation's cached domain sign-in lets a user reach their desktop
+    even when the machine's own channel to the domain is broken — which is
+    what happens after an extended absence, once that channel needs to be
+    re-established on return. The account itself checks out clean; the
+    differential is noticing that and looking at the machine instead."""
+
+    id = "ad.cached_credentials_expired"
+    domain = "identity"
+    difficulty = 2
+    canonical_title = (
+        "Workstation's cached domain credentials are stale after an "
+        "extended absence from the corporate network"
+    )
+    supported_backends = frozenset({"simulated", "winrm"})
+    leak_terms = ["cached", "cache", "trust relationship", "secure channel", "netlogon"]
+    escalation_is_correct = False
+    kb_articles = ["identity-signed-in-but-cut-off"]
+
+    def placements(self, world: World) -> list[Placement]:
+        return _workstations(world)
+
+    def apply(self, world: World, at: Placement, rng: Random) -> None:
+        world.machines[at.key].services["Netlogon"] = ServiceState.STOPPED
+
+    def is_present(self, world: World, at: Placement) -> bool:
+        # Unlike `Spooler`, `Netlogon` has no entry in a clean machine's
+        # `services` dict at all — a healthy world never mentions it, so
+        # absence must read as healthy rather than as "unconfirmed running".
+        return world.machines[at.key].services.get("Netlogon") is ServiceState.STOPPED
+
+    def symptoms(self, world: World, at: Placement) -> UserSymptoms:
+        return UserSymptoms(
+            opening="I can log in fine, but none of my shared drives will "
+            "connect, my printer's missing, and Outlook won't stay signed in.",
+            onset="I've been working from home for the last few weeks and "
+            "only came back into the office this morning.",
+            scope="Just me — the person next to me hasn't had any problems.",
+            error_text="Outlook keeps asking for my password, I type it in "
+            "correctly, and it just asks again. My drives say the network "
+            "path can't be found.",
+        )
+
+    def diagnostic_path(self, at: Placement) -> list[Query]:
+        return [Query(kind="machine.services", target=at.key, args={"service": "Netlogon"})]
+
+    def canonical_resolutions(self) -> list[ResolutionPath]:
+        return [
+            ResolutionPath(
+                label="Restart the Netlogon service",
+                actions=[
+                    Action(
+                        kind="machine.restart_service",
+                        target=PLACEHOLDER,
+                        args={"service": "Netlogon"},
+                    ),
+                ],
+            ),
+        ]
+
+
 register(AccountLocked())
 register(PasswordExpired())
 register(OffboardedReactivation())
 register(ShareGroupRemoved())
+register(CachedCredentialsExpired())
