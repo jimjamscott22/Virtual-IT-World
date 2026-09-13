@@ -1,461 +1,200 @@
-# Phase 2a handoff
+# Phase 2b handoff
 
-Written at the end of the session that landed Tasks 15–17 (all of Phase 2a,
-merged in PR #10) and then Phase 2b's groundwork. Delete this file when
-Phase 2a is complete — it records *situational* state (branch, PR, what is
-half-done), not architecture. Architecture lives in `CLAUDE.md`.
+Written after Phase 2b's groundwork PR (#11) and its Task 1 (`8cf1804`,
+`ad.cached_credentials_expired`), both merged to `main`. Records *situational*
+state (what's landed, what's next, what's open) — architecture lives in
+`CLAUDE.md`/`AGENTS.md`, and per-task detail lives in
+`docs/superpowers/plans/2026-08-14-phase-2b-catalog.md`. Delete or rewrite this
+file once Phase 2b's Definition of Done is met.
 
 ## Where things stand
 
 | | |
 | --- | --- |
-| Branch | `claude/game-dev-progress-review-i56yyx` |
-| Pull request | [#10](https://github.com/jimjamscott22/Virtual-IT-World/pull/10) — **merged**. Phase 2b groundwork is on a fresh branch off the merged `main`. |
-| Base | `main` — **merged in at `fa5bef0`**, which is PR #9's own implementation of Task 15. See the collision section below. |
-| Tests | 912 passing, 0 xfailed |
-| Lint | 10.00/10 on `src` and on `tests` |
+| Branch | `main` |
+| Latest commit | `8cf1804` — "feat(faults): add identity domain's cached-credentials fault (2b Task 1)" |
+| Tests | 942 passed, 0 failed (verified live: `uv run pytest`) |
+| Lint | 10.00/10 on `src` (verified live: `uv run pylint src`) |
+| Faults registered | 14 — identity 5, network 2, printing 3, endpoint 2, mail 2 |
 
-## Health check done at the start of this session
+Phase 2a (Tasks 1–17) is fully complete and merged. Phase 2b's groundwork
+(estate growth, fixed shift, difficulty-driven scheduling) is done, and its
+Task 1 is the first fault added under that groundwork.
 
-Before writing anything, the Task 14 state was verified rather than assumed:
-`main` green at 564 passing, pylint 10.00/10 on both targets, no `TODO`/
-`FIXME`/`xfail` anywhere, branch identical to `main`. Three real findings:
+## What landed most recently
 
-1. **`AGENTS.md` had drifted badly.** It was still the long-form Task 3-era
-   text while `CLAUDE.md` had been compressed and carried through Task 14 —
-   so the convention below ("both files identical except the title line")
-   was documented but not true, and a Codex session would have been briefed
-   on a codebase eleven tasks out of date. `AGENTS.md` is now a byte-for-byte
-   copy of `CLAUDE.md` below the title. The long per-task prose it carried
-   is not lost: it is in git history and in the PRs, which is exactly where
-   `CLAUDE.md` says that detail lives.
-2. **`mail-cannot-send-or-receive.md` was an orphaned KB article** — shipped
-   inert in Task 10, linked by no fault. Task 15 closes that: both new mail
-   faults link it.
-3. **Two latent defects, both found by driving the code live rather than by
-   the suite.** Written up in `CLAUDE.md`'s deviation table and fixed here:
-   `_read_mail_rules`'s fixed-width column collided with a realistic
-   forwarding address, and `Ticket.accept_escalation` silently discarded
-   tier-2's acceptance text — the only place any fault's
-   `escalation_reason` is ever spoken.
+**Phase 2b groundwork** (`0a9d387`, PR [#11](https://github.com/jimjamscott22/Virtual-IT-World/pull/11)) settled the three questions the 2b plan
+required before any fault-adding task:
 
-## What landed this session
+- **The estate grew to 20 users / 10 workstations** (from 12/6), append-only
+  so every existing row stayed byte-identical. Half the org now shares a
+  terminal, which keeps a machine-placed fault from being a user-placed fault
+  under another name.
+- **A fixed eight-hour simulated shift** (`session/shift.py`, `/shift`):
+  arrivals stop at 17:00, open tickets stay workable, and the end-of-shift
+  report sums the store's own rows (except `unresolved`, which has to come
+  from the live queue).
+- **Difficulty now drives how often a fault is dealt**, not placement count.
+  `choose_fault_and_placement()` picks the fault first (weighted 5/4/3/2/1 by
+  `difficulty`), then a placement uniformly. Before this change the catalog's
+  only cascade (one placement) was drawn 20x less often than a mail fault
+  (twenty placements) for no reason anyone chose.
 
-**Task 15** from the plan (line 1697) — **the two reference mail faults**:
+**Phase 2b Task 1** (`8cf1804`) — `ad.cached_credentials_expired`:
 
-- `src/vitsc/faults/catalog/mail.py` (new), registered via
-  `catalog/__init__.py`:
-  - `mail.mailbox_full` (`difficulty=2`): `apply()` pushes `used_mb` just
-    over `quota_mb`; `is_present()` is `used_mb >= quota_mb`. Two canonical
-    resolutions, `mail.set_quota` and `mail.archive`, neither of them "the"
-    answer. Added to `session/ticket.py:WORK_STOPPING`.
-  - `mail.external_forwarding_rule` (`difficulty=4`, escalate-correct):
-    `apply()` adds an innocuously named `MailRule` forwarding outside
-    `meridian.local` *and* sets `forwarding_smtp`. **Deviation from the
-    plan:** `is_present()` covers both halves and `canonical_resolutions()`
-    is `[]`, because no action clears `forwarding_smtp` — so a technician
-    who deletes the visible rule finds the fault still present. Full
-    reasoning in `CLAUDE.md`'s deviation table.
-- `tests/test_faults_mail.py` (new): the plan's four tests plus eight more,
-  the load-bearing one being
-  `test_removing_the_rule_alone_does_not_clear_the_fault`.
-- `tests/test_catalog.py`: both hardcoded roster tests extended;
-  `test_exactly_two_faults_are_escalate_correct` renamed to `..._three_...`.
-- `tests/test_end_to_end.py`: the `mail.mailbox_full` `HTTP_FIX` /
-  `TARGET_FIELD` entries, pulled forward from Task 16 because the existing
-  guard fails the moment the fault registers.
+- Models a workstation whose cached domain sign-in has gone stale after an
+  extended absence from the network: the user reaches their desktop fine,
+  but mapped drives, printers, and mail all fail because the machine's live
+  channel to the domain controller (`"Netlogon"` in `machine.services`) is
+  down. Gated and cleared exactly like `print.spooler_stopped` — a
+  `ServiceState.STOPPED` entry, cleared by `machine.restart_service`.
+- Deliberately the cheapest possible 2b task: no new query/action kind, no
+  new `World` field, no new tool surface — it reuses `machine.services` /
+  `machine.restart_service`, already reachable via `remote services`,
+  `ps Get-Service`, `ps Restart-Service`.
+- The differential against the other four identity faults: `ad get-user` on
+  the affected sam comes back completely clean (not locked, not expired, not
+  disabled), because the account itself is never touched. The technician has
+  to notice the account checks out and look at the machine instead.
+- Adds `src/vitsc/data/kb/identity-signed-in-but-cut-off.md` (the existing
+  identity KB article is about not being able to sign in at all, which
+  doesn't fit this symptom).
+- `tests/test_catalog.py` (`test_v1_catalog_is_complete`) and
+  `tests/test_end_to_end.py` (`HTTP_FIX`/`TARGET_FIELD`) updated in the same
+  commit, per conventions 21–22 below.
 
-**Two out-of-plan fixes**, both surfaced by the new faults:
+## What's next
 
-- `env/simulated.py:_read_mail_rules` now sizes its columns from the
-  content instead of a fixed `:<28`. Regression test in
-  `tests/test_simulated_env.py`.
-- `Ticket.accept_escalation(text, at)` records tier-2's words;
-  `AfterAction.tier2_note` carries them; `_afteraction.html` renders them.
-  Tests in `tests/test_tier2.py` and `tests/test_web_escalate.py`. Before
-  this, an accepted escalation — the correct disposition for three faults —
-  showed the player nothing about *why* the ticket was not theirs.
+Continuing down `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md`'s
+task list toward its **30+ fault target** (currently 14; roughly 16 more
+needed, spread so no domain stays below five). The plan's domain table names
+candidates per domain — network's duplicate-static-IP cascade and printing's
+stuck-queue fault (which needs a new print-queue-clear action kind) are
+flagged as the two that need new plumbing rather than reusing existing
+query/action kinds, so they're more expensive tasks than Task 1 was.
 
-**Verified live, not just green tests**, three ways: every `mail` command
-driven directly against a real `SimulatedEnvironment` through the real
-`MailConsole`; both faults worked end to end through `TestClient` (resolve
-path, escalate path, and the wrong-disposition path, checking the grade and
-verdict each time); and the real server (`uv run python -m vitsc`) started,
-a ticket driven in off the simulated clock via `/events`, and `mail
-get-mailbox` run through an actual `POST /ticket/{id}/tool`.
+Before starting the next task, re-verify `main`'s state rather than trusting
+this file — a past session (see conventions 6 and 23 below) already hit two
+sessions being handed the same task, and a change to `SessionQueue`'s RNG
+consumption can silently shift which fault a fixed `seed=N` deals across the
+whole suite.
 
-## Task 16 also landed
+## Phase 2b Definition of Done
 
-**End-to-end coverage for every new surface** — plan line 1791. Step 1's
-`HTTP_FIX` entries came in with Task 15; this added Step 2's tests and then
-some, all in `tests/test_end_to_end.py`:
+Copied from the plan, not yet checked item by item this session:
 
-- `test_a_cascade_can_be_worked_through_http` — three tickets sharing one
-  `cascade_id`, one `print restart-spooler`, three clean closes, each report
-  carrying the "was behind 3 tickets" note.
-- `test_a_bounced_escalation_can_be_recovered_through_http` — escalate a
-  fixable fault, get bounced on ownership, fix it, close it. Also asserts the
-  bounce text passes `scrub()` against the fault's own leak terms.
-- `test_a_mail_ticket_can_be_worked_through_http` and
-  `test_an_escalate_correct_mail_ticket_is_accepted_through_http` — the mail
-  slice's two faults have *opposite* correct dispositions, so one test cannot
-  cover both. The second is also the only end-to-end proof that
-  `escalation_reason` reaches the rendered report.
-- `test_a_seeded_distractor_does_not_block_any_ticket` — a full pass with
-  noise in the world, asserting `collateral_count == 0` (a distractor must
-  never be blamed on the technician) and that every seeded distractor's note
-  is named in the report.
+- [ ] 30+ faults registered, conforming across every placement, in all five
+      domains, none below five. **Currently 14** (identity 5, network 2,
+      printing 3, endpoint 2, mail 2).
+- [ ] At least two cascade faults in different domains, and at least four
+      escalate-correct faults, no two escalate-correct for the same reason.
+      **Currently:** one cascade (`print.server_spooler_stopped`), three
+      escalate-correct faults.
+- [ ] Every fault links at least one KB article; every article linked by at
+      least one fault (no orphans either direction).
+- [ ] Distractor count scaled to the catalog (currently 5, sized for the old
+      13–14-fault catalog).
+- [ ] Mail invariants land, with a fault that trips them when fixed wrongly.
+      **Not started** — Task 12 (Phase 2a) deliberately deferred this.
+- [ ] The escalation-disposition inconsistency (see Open threads) resolved
+      one way or the other, deliberately.
+- [ ] Every fault's `difficulty` chosen as a frequency decision, not just a
+      hardness one.
+- [ ] A full eight-hour shift workable end to end; `/shift` reads correctly
+      for a good shift and a bad one.
+- [ ] `uv run pytest` green with nothing on localhost; `uv run pylint src`
+      and `tests` at 10.00/10. **✅ true right now** (942 passed, 10.00/10).
+- [ ] A full ticket worked in the browser in all five domains, and a player
+      working twenty consecutive tickets cannot predict the cause from the
+      opening line.
 
-`test_every_resolvable_fault_has_an_http_fix_mapped` was strengthened from
-containment to set equality, so a stale entry fails too, and
-`test_every_http_fix_names_a_real_command_and_target_field` was added for the
-other way an entry can be wrong.
+## Still-open items carried over from Phase 2a
 
-**Driven manually as well**, per the plan's Step 4 and convention 5. Two real
-servers, no `TestClient`: the default app for a bounced escalation (tier-2
-returns it, ticket goes back to `in_progress`, the nudge names nothing) and
-an ordinary ticket closed "Resolved correctly" with three distractors seeded
-and named as pre-existing in the report; and a second server built with a
-cascade dealt, where the queue rendered one shared `C1` tag on three rows in
-three different voices, a single `restart-spooler` cleared it, and all three
-closed correctly with the cascade note.
+These were open at the end of Phase 2a and remain open — nothing in Phase 2b
+so far has touched them:
 
-## Task 17 also landed
-
-**Documentation refresh** — plan line 1888, the last task in Phase 2a.
-
-- **Step 1** (`CLAUDE.md`'s architecture section) was the real work. The layer
-  diagram had never been updated past Phase 1: it listed six tools, no
-  session layer, no persona layer, and no distractors. It now shows all eight
-  tools, both catalogs feeding `World`, and the two layers that sit above
-  `Environment`. New bullets for `vitsc.distractors` and `vitsc.kb`;
-  `FaultBase`, cascades and the thirteen-fault domain breakdown folded into
-  the faults bullet; `session/tier2.py` into the session bullet.
-- The "enforced mechanically" line became a **table of the six guarantees
-  that are proved by a test rather than trusted to a reviewer**, each naming
-  the file that proves it. That is the most useful thing in the section for
-  anyone deciding whether a change is safe.
-- **Step 2** (the deviation table) needed nothing new — it has been extended
-  per task rather than left to the end, which is how it stayed accurate.
-- **Step 3** (the spec's §6 catalog table) is **not done, and is the one open
-  item in Phase 2a.** See below.
-- **Step 4**: `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md` written
-  as a skeleton — goal, seven inherited constraints, the fault-per-task
-  shape, the domain table, three open questions to settle *before* Task 1
-  (does the estate grow? does difficulty drive scheduling? does a session
-  end?), and a Definition of Done.
-
-### The one thing Task 17 could not do
-
-Step 3 says to update the design spec's §6 catalog table. **The spec is not in
-the working tree** — it and the whole Phase 1 plan were deleted in commit
-`dbcd2bb` ("Delete the design specification…", authored by Jamie Scott,
-2026-08-28), 4,604 lines across the two files.
-
-That was a deliberate, titled commit by the repo owner, so restoring it is
-not a call this session made unilaterally. Recover with:
-
-```bash
-git show dbcd2bb^:docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md
-git show dbcd2bb^:docs/superpowers/plans/2026-08-07-phase-1-drill.md
-```
-
-If the spec comes back, §6 needs: the catalog table grown from "v1 catalog
-(10 faults)" to the current thirteen, and the `Fault` protocol's four Phase
-2a members added to its listing (`kb_articles`, `escalation_is_correct` /
-`escalation_reason` / `escalation_evidence`, `reporters()`). If it stays
-deleted, `CLAUDE.md` is the sole architectural record and the 2a plan's own
-cross-references to the spec (its lines 11–12, and Task 17's file list) are
-permanently dangling — worth a line in the 2b plan saying so.
-
-## Phase 2a Definition of Done
-
-Checked item by item against the plan's own list, not asserted:
-
-| | Item | Status |
-|---|---|---|
-| 1 | `uv run pytest` green with LM Studio **not** running | ✅ 624 passed |
-| 2 | `uv run pytest` green with LM Studio **running** | ⬜ **cannot be checked here** — no sandbox has had network to a local LM Studio. `docs/verifying-lmstudio.md` is the manual procedure; a green pipeline does not stand in for it |
-| 3 | `VITSC_PERSONA=lmstudio` roleplays every ticket; stopping LM Studio mid-session shows the degraded banner | ⬜ same, manual |
-| 4 | Thirteen faults conform across every placement, in all five domains | ✅ identity 4, printing 3, network 2, endpoint 2, mail 2 |
-| 5 | Every distractor passes the non-interference harness | ✅ 99 passed |
-| 6 | A cascade opens several tickets, one fix clears all, report names the shared cause | ✅ automated **and** played live |
-| 7 | A fixable escalation bounces with a leak-free nudge; an escalate-correct one with evidence is accepted | ✅ automated and played live |
-| 8 | No KB article names a fault id or `canonical_title`; every `kb_articles` link resolves | ✅ |
-| 9 | `grep -r "from vitsc.faults" src/vitsc/tools/` empty; `test_architecture.py` green with `mail.py` and `kb.py` present | ✅ |
-| 10 | No leak term in any system prompt | ✅ |
-| 11 | A full ticket can be worked in the browser in all five domains | ✅ all five played through a real server over HTTP: `ad.account_locked`, `net.static_dns_misconfig`, `print.spooler_stopped`, `endpoint.disk_full`, `mail.mailbox_full` — each closed "Resolved correctly" |
-
-**Phase 2a is complete except for items 2 and 3**, which are a manual check on
-a machine with LM Studio running and cannot honestly be marked from here.
-Do those, settle the spec question above, and this file can be deleted.
-
-## Task 15 was implemented twice — read this before touching `mail.py`
-
-While this branch was working Tasks 15–17, **PR #9 landed the same Task 15 on
-`main` independently** (`fa5bef0`, merged 2026-09-06). Two sessions built the
-same two faults from the same plan. `main` was merged into this branch and the
-overlap resolved deliberately rather than by picking a side:
-
-| File | Resolution |
-| --- | --- |
-| `faults/catalog/mail.py` | **PR #9's module kept as the base** — its naming, placements (`_mailbox_owners`, all users), symptom wording, and `quota_mb="999999"` all stand. Three changes applied on top, below. |
-| `tests/test_faults_mail.py` | This branch's kept: it is a strict superset, containing all four of PR #9's tests plus eight more. |
-| `tests/test_catalog.py` | Both sides made the *same* substantive change (same id sets, same escalate-correct roster). This branch's docstrings kept. |
-| `tests/test_end_to_end.py` | Auto-merged; both added the same `HTTP_FIX`/`TARGET_FIELD` entries. |
-| `CLAUDE.md` / `AGENTS.md` / `docs/handoff.md` | This branch's kept — they are current through Task 17 where PR #9's stop at 15 — with PR #9's unique content folded in (the `escalation_evidence` nuance, conventions 19–20 below). |
-
-### The three changes applied on top of PR #9's `mail.py`
-
-1. **`ExternalForwardingRule.is_present()` now gates on both halves.**
-   PR #9's own open thread flagged this and judged it "not a correctness bug,
-   since no invariant tracks `forwarding_smtp`". That reasoning is right about
-   *invariants* and about *grading* — the fault is escalate-correct, so a
-   technician who removes the rule and closes as resolved is marked wrong
-   either way. But `is_present()` is documented in `faults/base.py` as "the
-   single source of truth for both 'is it broken' and 'was it fixed'", and on
-   `main` as merged it reports **fixed** on a mailbox that is still
-   redirecting every message to an outside address. Reproduced directly:
-   `mail.remove_rule` → `is_present()` False → `Get-Mailbox` still shows
-   `ForwardingSmtpAddress: …@external-mail.example.com`.
-   PR #9's thread proposed the other resolution — have `mail.remove_rule`
-   clear `forwarding_smtp` too. That was rejected on purpose: it would make
-   "delete the rule" a *complete* fix for a security incident, which is the
-   opposite of what this fault exists to teach. **If you prefer that
-   direction, this is the one change to revert.**
-2. **`canonical_resolutions()` is now `[]`**, which follows from 1: with the
-   gate covering `forwarding_smtp`, no sequence of existing actions clears
-   the fault. Same encoding `endpoint.failing_disk` already uses, and
-   `tests/test_catalog.py` already carries the branch for it.
-3. **Both faults now set `kb_articles = ["mail-cannot-send-or-receive"]`**,
-   which had shipped inert in Task 10 and was linked by no fault. Also
-   `assert mailbox is not None` replaced with a raising helper — an `assert`
-   vanishes under `python -O`, and this one guards the pass/fail gate.
-
-Also: `diagnostic_path()` gained `mail.mailbox` alongside `mail.rules`, since
-after change 1 the fault has two halves and `mail.rules` only shows one.
-
-## Phase 2b groundwork (this session, after 2a merged)
-
-The 2b plan listed three questions to settle *before* its Task 1. All three
-are now settled and implemented, deliberately before any 2b fault exists —
-each one would have been far more expensive afterwards.
-
-**The estate: 20 users, 10 workstations.** Append-only, so every existing row
-is byte-identical and not one fixed-seed test moved. Half the org shares a
-terminal, which keeps machine-placed faults from being user-placed faults
-under another name. Closed two gaps the growth exposed: HR had a share group
-with no share behind it (nobody in HR had a machine, so nothing ever mapped
-it), and Sales was borrowing Operations' printer. The suite went 660 → 880
-on its own — the conformance harness picks up new placements without being
-told.
-
-**A fixed eight-hour shift** (`session/shift.py`, `/shift`). Arrivals stop at
-17:00; open tickets stay workable. The report sums the store's own rows so it
-cannot disagree with the history page, except `unresolved`, which has to come
-from the live queue because a ticket nobody closed was never stored.
-
-**Difficulty drives scheduling — because something already did.** This is the
-one worth reading the commit for. The old scheduler drew uniformly from
-`(fault, placement)` pairs, which silently weighted every fault by how many
-targets it happened to have. Measured on the new estate: the catalog's only
-cascade had **one** placement and 0.8% of the draw; `mail.external_forwarding_rule`
-had twenty and 15.2%. The most interesting ticket in the game was the rarest,
-by accident. `choose_fault_and_placement()` now picks the fault first,
-weighted 5/4/3/2/1 by difficulty, then a placement uniformly: cascade 8.6%,
-forwarding 4.2%, and a 21/51/19/9 spread across difficulties 1–4.
-
-**Two things this changes for whoever writes the 2b faults:**
-
-1. `difficulty` is now load-bearing. It is a *frequency* decision as much as
-   a hardness one. Declaring 4 because a fault feels involved makes it
-   genuinely rare; declaring 1 on something fiddly makes it the ticket the
-   technician sees most.
-2. `placements()` no longer controls frequency, so a fault may attach to one
-   specific server without becoming unreachable. That is what makes
-   server-side and estate-wide 2b faults viable at all.
-
-**Three tests broke and none of them was seed churn.** They assumed one
-arrival is one ticket — only ever true because the cascade was nearly
-unreachable. At ~9% the fixed seed deals it and the assumption collapses. The
-tests were corrected, not the scheduler weakened; see the deviation table in
-`CLAUDE.md`. Expect more of this class as 2b adds cascade faults.
+- **The LM Studio path is still unverified.** No environment used so far has
+  had network access to a local LM Studio instance.
+  `docs/verifying-lmstudio.md` is the manual procedure; a green pipeline does
+  **not** stand in for it.
+- **The deleted design spec.** `docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md`
+  and the Phase 1 plan were deleted from the tree in commit `dbcd2bb`
+  (deliberate, titled, by the repo owner). Recoverable with:
+  ```bash
+  git show dbcd2bb^:docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md
+  git show dbcd2bb^:docs/superpowers/plans/2026-08-07-phase-1-drill.md
+  ```
+  If it stays deleted, `CLAUDE.md`/`AGENTS.md` remain the sole architectural
+  record, and the 2a plan's own cross-references to the spec (lines 11–12,
+  and Task 17's file list) stay permanently dangling.
+- **`remote clear-disk` with no `gb` silently succeeds and frees nothing.**
+  `_do_machine_clear_disk` reads `float(a.args.get("gb", "0"))`, logging a
+  mutation that did nothing. `_do_mail_set_quota` handles the analogous case
+  the opposite way (rejects outright). Fix: treat a missing `gb` as a
+  rejection, matching `set_quota`.
+- **Two ways still reach `Disposition.ESCALATED`**: the reviewed
+  `/ticket/{id}/escalate` flow, and the unreviewed "Escalated" option still
+  sitting in the close-ticket dropdown, which skips `review_escalation`
+  entirely and produces an after-action with no `tier2_note`. Whether the
+  dropdown option should be removed is a real design question, called out in
+  the Phase 2b DoD above but not yet decided.
+- **No CSS for tier-2/KB/cascade elements** (`.chat-tier2`, `.tier2-bounce`,
+  `.tier2-outcome`, `.tier2-note`, `.escalate-form`, `.ticket-actions`,
+  `.kb-suggestions`, `.kb-page`, `.kb-article`, `.kb-results`, `.kb-search`).
+  Matches existing unstyled precedent (`.warning`, `.ticket-cascade`,
+  `.cascade-note`).
+- **`_kb.html` has no link back to it from `layout.html`/`index.html`.**
+  Reachable only via `/kb` directly or the after-action's links.
+- **`mail.mailbox`'s size fields render as a plain `"51200.0 MB"`** rather
+  than real Exchange's mixed-unit style. Consistent with how this codebase
+  already simplifies other cmdlet output.
+- **No mail invariant exists** — also listed in the Phase 2b DoD above.
 
 ## Conventions this codebase expects
 
-Things that are easy to get wrong and are not obvious from the code alone.
+Carried forward from the Phase 2a handoff; still accurate and still easy to
+get wrong. The full numbered list (25 items) lives in git history for this
+file (see the commit that replaced this doc) and is summarized in `CLAUDE.md`
+where it overlaps architecture. The ones most likely to bite the next 2b
+fault task:
 
-1. **Register instances, not classes.** `register_distractor(Thing())` /
-   `register(Thing())` at the bottom of the module. A bare class fails at
-   *collection* time with a missing `self`.
-2. **Deviations from the plan get recorded.** `CLAUDE.md` and `AGENTS.md`
-   both carry a "Where the code deliberately diverges from the plan" table.
-   The two files are identical except their first-line title and tool name —
-   check that this is still true before you finish, because it silently
-   stopped being true between Tasks 3 and 14.
-3. **Lint is two commands.** `uv run pylint src` keeps the strict set;
-   `tests` relaxes four pytest idioms. Prefer fixing a finding, or
-   suppressing it at its own line, over adding to the global disable list —
-   a design-limit bump (`max-locals`, `max-args`, `max-attributes`) is one
-   line in `[tool.pylint.design]` with a comment naming which change needed
-   it, and the comment gets extended (not replaced) the next time it moves.
-4. **`tests/conftest.py` clears `VITSC_*` for every test.** Do not remove it.
-5. **Prove a new mechanism actually works, not just that pytest is green.**
-   Both of this session's out-of-plan fixes were found this way and by no
-   test. Drive it against a real `SimulatedEnvironment`, then through the
-   real running app.
-6. **A change to `SessionQueue`'s RNG consumption can silently shift which
-   fault a fixed `seed=N` deals**, in any test that builds a real
-   `SessionQueue` or `AppSession`. Adding faults changes the candidate pool
-   too — Task 15 did, and the suite happened to stay green, but re-run it in
-   full and read failures carefully rather than assuming either way.
-7. **A `Ticket | None` → `list[Ticket]` return-type change breaks
-   `is None`/`is not None` checks silently, not loudly** — a list is always
-   "not None", so a `while x() is not None: pass` loop against the new
-   signature never terminates. Prefer truthiness or an explicit `== []`.
-8. **`ServiceState` (`world/models.py`) is a real `str, Enum`, not a bare
-   string constant, and its values are mixed-case** (`"Running"`,
-   `"Stopped"`). Compare against `ServiceState.RUNNING`, not an assumed
-   all-caps form.
-9. **A fault whose `reporters()` returns a list (a cascade fault) breaks any
-   test that assumes `assigned_to` names the reporter.** Prefer
+1. **Register instances, not classes** — `register(Thing())` at the bottom
+   of the module.
+2. **`CLAUDE.md` and `AGENTS.md` must stay byte-identical below the title
+   line.** Check this before finishing a task; it silently drifted once
+   already (Tasks 3–14).
+3. **A hardcoded "complete" id-set test and escalate-correct count test both
+   break the moment a task registers a new fault.** Update them in the same
+   commit, not a later "documentation" task.
+4. **`tests/test_end_to_end.py`'s `HTTP_FIX`/`TARGET_FIELD` tables must stay
+   current in the task that registers a new escalate-incorrect fault** — the
+   guard iterates `all_faults()` and fails immediately otherwise.
+5. **`Fault.difficulty` decides how often a fault is dealt, not just how hard
+   it is.** Choose it with frequency in mind (`DIFFICULTY_WEIGHTS` in
+   `session/queue.py`).
+6. **A fault whose `reporters()` returns a list (a cascade) breaks any test
+   that assumes `assigned_to` names the reporter** — prefer
    `session/queue.py:resolved_reporters(world, fault, placement)`.
-10. **`diagnostic_path()` and `canonical_resolutions()` receive only a
-    `Placement`, never `World`.** A literal company-topology string
-    (`MER-FS-01`, `PRT-ACC-01`) is an accepted fallback when no sentinel
-    fits — not a new sentinel invented per fault.
-11. **A message shown to the *technician* is not subject to leak-term
-    scrubbing — only persona/user-facing text is.** The one exception: a
-    *bounce* message for a fixable fault must stay generic across the whole
-    catalog.
-12. **The plan's own worked examples can contradict its prose description of
-    an algorithm's step order, or a test's own naive assertion can be wrong
-    even when transcribed faithfully.** Trust the behavioural requirement.
-13. **A raw substring check for a leak term against a *whole rendered page*
-    is unreliable — check the specific generated text instead**, via
-    `persona/client.py:scrub()`.
-14. **`| safe` in a template is not categorically forbidden — only for text
-    that can trace back to a ticket, a persona, or a chat turn.** Check the
-    data's provenance before copying either pattern. `AfterAction.tier2_note`
-    is static catalog text but still autoescaped, because it arrives via a
-    `ChatTurn`.
-15. **A `World` field with no default (`mail: MailSystem`) makes every direct
-    `World(...)` construction outside `world/seed.py` a build error until
-    updated.** Grep for `World(` before adding a second required field.
-16. **A sandboxed session's git safety classifier can block a *reset* of an
-    already-merged branch back to `main`.** Cut a new branch name off `main`
-    instead and move on.
-17. **A `DispatchTool`'s error-message wording can leak the wrong vocabulary
-    layer.** When a handler's args-dict key and the real cmdlet's flag name
-    differ, decide deliberately which one an error message echoes, and check
-    what any existing test already expects before picking.
-18. **A tool's own `_tools.html`/registry "modify" instructions in the plan
-    can be inert.** `_tools.html` iterates `all_tools()` and each tool's own
-    `commands()` generically. Check whether a generic loop already covers a
-    new tool before editing the template.
-19. **Fixed-width column formatting in `env/simulated.py` is a landmine.**
-    `f"{value:<28}"` does not truncate — a value wider than the field pushes
-    the next column flush against it with no separating space, and nothing in
-    the suite notices because test fixtures use short values. Several other
-    renderers still use fixed widths (`_read_ad_user`, `_read_machine_state`,
-    `_read_machine_services`, `_read_mail_queue`); they are fine today only
-    because their values are short. Size from the content if you add one.
-20. **`Fault.escalation_reason` reaches the player through exactly one
-    string**, `tier2.py`'s acceptance text, and from there through
-    `Ticket.chat` into `AfterAction.tier2_note`. Anything that drops a
-    tier-2 chat turn silently deletes the entire teaching payload of an
-    escalate-correct ticket, with no test failing.
-
-21. **A hardcoded "complete" id-set test (`test_v1_catalog_is_complete`) and
-    a hardcoded count test (`test_exactly_three_faults_are_escalate_correct`)
-    both break the moment a task registers a new fault — before the task that
-    "officially" owns updating them arrives.** Keep them current in the same
-    task that adds the fault. (From PR #9's handoff; this branch hit the same
-    thing independently.)
-22. **`tests/test_end_to_end.py`'s `HTTP_FIX`/`TARGET_FIELD` tables must stay
-    current in the task that registers a new escalate-incorrect fault**, not
-    whichever later task's plan text happens to mention the file. The guard
-    iterates `all_faults()` and fails immediately. (Also from PR #9.)
-23. **Two sessions can be given the same task.** Task 15 was built twice, in
-    parallel, from the same plan — see the collision section above. Before
-    starting a task, check whether `main` has moved and whether an open PR
-    already covers it.
-
-24. **One arrival is not one ticket.** A cascade deals several tickets from a
-    single `open_ticket()`/`tick()` call, sharing a `fault_id`, a `placement`
-    and a `cascade_id`. Any test that counts tickets where it means arrivals,
-    or calls `open_one()` a fixed number of times, is asserting that cascades
-    cannot happen. Three tests did exactly that and only survived because the
-    cascade was almost never dealt. Count arrivals by `cascade_id`, and prefer
-    `while tickets := queue.open_ticket():` over a fixed range.
-25. **`Fault.difficulty` decides how often a fault is dealt**, not just how
-    hard it is (`DIFFICULTY_WEIGHTS` in `session/queue.py`). Choose it with
-    frequency in mind.
-
-## Open threads
-
-Not blocking Task 16, but real.
-
-- **Two of `CLAUDE.md`'s three context pointers were dangling.** The design
-  spec and the Phase 1 plan were both deleted from the tree in commit
-  `dbcd2bb`, but `CLAUDE.md` still listed them as if they existed — as does
-  the Phase 2a plan, at its own lines 11–12 and in Task 17's file list.
-  `CLAUDE.md` now says so and gives the `git show dbcd2bb^:...` recovery
-  command; the plan is left alone, since editing a plan to match reality is
-  Task 17's call, not a drive-by.
-- **`remote clear-disk` with no `gb` silently succeeds and frees nothing.**
-  `_do_machine_clear_disk` reads `float(a.args.get("gb", "0"))`, so a player
-  who types `remote clear-disk host=MER-WS-001` gets `ok=True` and the
-  cheerful message "MER-WS-001 now has 0.7 GB free of 256.0 GB" — a mutation
-  logged against them that did nothing. `_do_mail_set_quota` handles the same
-  situation the opposite way, rejecting a missing `quota_mb` outright.
-  Found by mistyping the command against a real server during the Definition
-  of Done pass. Not fixed here: Task 17 is a documentation task, and the fix
-  touches a `mutating`/grading-adjacent path that deserves its own change.
-  The fix is to treat a missing `gb` as a rejection (`ok=False`, no
-  mutation), matching `set_quota`, and let `DispatchTool`'s existing
-  "a rejected call never reached the environment" rule keep the grade honest.
-- **PR #9's `forwarding_smtp` thread is resolved**, by the gate change above rather than by clearing the field. Reopen it if you prefer the other direction.
-- **`ipconfig` rendering has no test coverage.** `_read_net_ipconfig` builds
-  `ipconfig`-shaped output whose dotted-leader spacing deliberately mimics
-  the real utility, and nothing asserts on it. Related to convention 19.
-- **The LM Studio path is still unverified.** No environment used so far has
-  network access to a local LM Studio instance. `docs/verifying-lmstudio.md`
-  is the manual procedure; a green pipeline does **not** stand in for it.
-- **Two ways still reach `Disposition.ESCALATED`**: the reviewed
-  `/ticket/{id}/escalate` flow (Task 9), and the unreviewed "Escalated"
-  option still sitting in the close-ticket dropdown. Now sharper than it was:
-  the dropdown path skips `review_escalation` entirely, so it produces an
-  after-action with no `tier2_note` and never tells the player why the ticket
-  was not theirs — the very thing this session just fixed on the reviewed
-  path. Whether the dropdown option should be removed is a real design
-  question nothing in the plan resolves; flagging it rather than deciding it.
-- **No CSS was added for `.chat-tier2`, `.tier2-bounce`, `.tier2-outcome`,
-  `.tier2-note`, `.escalate-form`, `.ticket-actions`, `.kb-suggestions`,
-  `.kb-page`, `.kb-article`, `.kb-results`, or `.kb-search`.** Matches
-  existing precedent (`.warning`, `.ticket-cascade`, `.cascade-note` are also
-  unstyled), but a future styling pass would want to pick these up.
-- **`_kb.html` has no link back to it from `layout.html`/`index.html`.** The
-  KB is reachable by typing `/kb` directly, or via the after-action's links.
-- **`mail.mailbox`'s `TotalItemSize`/`ProhibitSendQuota` render as a plain
-  `"51200.0 MB"`** rather than real Exchange's mixed-unit
-  `"50 GB (53,687,091,200 bytes)"` style. Consistent with how this codebase
-  already simplifies other cmdlet output.
-- **No mail invariant exists.** Task 12 deliberately deferred one; with two
-  mail faults now live, "a mailbox was deleted" or "quota set below usage"
-  are the plausible candidates if a technician's collateral damage in the
-  mail domain ever needs teeth.
+7. **`diagnostic_path()` and `canonical_resolutions()` receive only a
+   `Placement`, never `World`** — use the sentinel constants in
+   `faults/base.py`, or a literal topology string as a fallback.
+8. **Prove a new mechanism works against a real `SimulatedEnvironment` and
+   the real running app, not just green pytest.** Two out-of-plan defects in
+   Phase 2a were found exactly this way.
 
 ## Resuming
 
 ```bash
-git checkout claude/game-dev-progress-review-i56yyx
+git checkout main
+git pull
 uv sync
-uv run pytest          # expect 912 passed, 0 xfailed
+uv run pytest          # expect 942 passed
+uv run pylint src      # expect 10.00/10
 ```
 
-Phase 2a's tasks are all complete. What is left is the Definition of Done's
-items 2 and 3 (the LM Studio check, on a machine that has it) and the spec
-question in the Task 17 section above. `CLAUDE.md` is the architectural brief
-and is current; `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md` is the
-next plan, as a skeleton to fill in.
+Next step is Phase 2b Task 2 — pick the next candidate from the domain table
+in `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md` (Task 1's own
+section names the printing stuck-queue fault and network's duplicate-IP
+cascade as the two that need new plumbing; anything else in the table is
+closer to Task 1's shape). Write the task's own section into that plan before
+starting, per its own "Shape of the work" convention.

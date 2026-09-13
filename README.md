@@ -29,8 +29,10 @@ tickets, and an unnecessary escalation can be returned by simulated tier 2.
 - A FastAPI and HTMX web interface with a live ticket queue and simulated clock.
 - Priority selection, SLA tracking, ticket chat, closure, and reviewed tier-2
   escalation.
-- Eleven faults across identity, endpoint, networking, file shares, and
-  printing, including a multi-user print-server incident.
+- A fixed eight-hour simulated shift with an end-of-shift summary at `/shift`.
+- Fourteen faults across identity, endpoint, networking, file shares, mail,
+  and printing — including a multi-user print-server cascade and
+  difficulty-weighted scheduling so hard, rare faults stay rare on purpose.
 - Five non-ticketable distractors that add realistic noise without causing the
   reported issue.
 - Eight technician tools: AD console, PowerShell, networking, Event Viewer,
@@ -38,9 +40,9 @@ tickets, and an unnecessary escalation can be returned by simulated tier 2.
 - Template-driven user personas by default, with an optional LM Studio-backed
   persona for more natural conversations.
 - Per-ticket grading, cascade-aware duplicate-fix detection, after-action
-  reports, and SQLite history for closed tickets.
-- A stable lab environment containing 12 users, 6 workstations, 4 servers,
-  3 printers, 4 department shares, and 12 mailboxes.
+  reports, a local knowledge base, and SQLite history for closed tickets.
+- A stable lab environment containing 20 users, 10 workstations, 4 servers,
+  3 printers, department shares, and one mailbox per user.
 - Automated conformance checks proving that registered faults are diagnosable,
   repairable, and isolated from the technician tools.
 
@@ -182,12 +184,22 @@ Released under the [MIT License](LICENSE).
 
 ## Current state
 
-As of **September 4, 2026**, Phase 1 is complete and Phase 2a Tasks 1–14 are
-merged into `main`. The repository currently contains 11 registered faults, 5
-distractors, 8 technician tools, and 564 automated tests. The mail world model,
-mail query/action layer, and mail console are implemented.
+As of **September 9, 2026**, Phase 1 and all of Phase 2a (Tasks 1–17) are
+complete and merged into `main`, and Phase 2b (catalog breadth) is under way.
+The repository currently contains 14 registered faults across five domains, 5
+distractors, 8 technician tools, and 942 automated tests, all passing with
+`uv run pylint` at 10.00/10 on both `src` and `tests`.
 
-The next planned checkpoint is Phase 2a Task 15: add the two reference mail
-faults (`mail.mailbox_full` and `mail.external_forwarding_rule`). The
-model-backed LM Studio path still requires the manual verification described
-above; the model-free application and test suite do not depend on it.
+The estate grew during Phase 2b's groundwork to 20 users and 10 workstations,
+the drill gained a fixed eight-hour shift (`/shift`), and the ticket scheduler
+now draws faults weighted by `difficulty` rather than by placement count, so a
+fault's rarity is a deliberate choice instead of an accident of how many
+targets it has. Phase 2b's Task 1 — `ad.cached_credentials_expired`, an
+identity fault placed on a machine rather than a user — has landed on top of
+that groundwork.
+
+The next planned checkpoint is Phase 2b Task 2, continuing down the fault list
+in `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md` toward its
+30+-fault target. The model-backed LM Studio path still requires the manual
+verification described above; the model-free application and test suite do
+not depend on it.
