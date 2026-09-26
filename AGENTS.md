@@ -123,6 +123,13 @@ uv run pylint tests \
 
 No model or network access is needed to run the suite.
 
+**Read pylint's exit code, not its score.** A single message still leaves the
+rating at `10.00/10` when the codebase is large enough for one finding to round
+away, and pylint exits 8 regardless. `uv run pylint src | tail -3` therefore
+prints a clean-looking rating line for a run that CI fails — which is exactly how
+a `too-many-branches` finding reached CI on the Phase 2b branch. Run it without a
+pipe, or check `$?`; `| tail` discards the exit status too.
+
 Lint runs as two commands so `src/` keeps the stricter rule set; the four
 disabled checks are pytest idioms that only ever fire in tests (a fixture
 argument shadowing its fixture, unused halves of an unpacked setup tuple,

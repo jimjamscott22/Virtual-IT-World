@@ -61,23 +61,30 @@ def capture_baseline(world: World) -> Baseline:
     )
 
 
-def check_invariants(world: World, baseline: Baseline) -> list[str]:
+def _account_violations(world: World, baseline: Baseline) -> list[str]:
     violations: list[str] = []
-
     for sam in sorted(baseline.enabled_users):
         user = world.org.users.get(sam)
         if user is None:
             violations.append(f"account {sam} was deleted")
         elif not user.enabled:
             violations.append(f"account {sam} was disabled")
+    return violations
 
+
+def _service_violations(world: World, baseline: Baseline) -> list[str]:
+    violations: list[str] = []
     for hostname, service in sorted(baseline.running_services):
         machine = world.machines.get(hostname)
         if machine is None:
             continue
         if machine.services.get(service) is not ServiceState.RUNNING:
             violations.append(f"service {service} on {hostname} was stopped")
+    return violations
 
+
+def _group_violations(world: World, baseline: Baseline) -> list[str]:
+    violations: list[str] = []
     for group_name, members in sorted(baseline.group_members.items()):
         current = world.org.groups.get(group_name)
         if current is None:
@@ -85,18 +92,23 @@ def check_invariants(world: World, baseline: Baseline) -> list[str]:
             continue
         for sam in sorted(members - set(current.members)):
             violations.append(f"{sam} was removed from {group_name}")
+    return violations
 
-    for machine in world.machines.values():
-        for server in machine.dns_servers:
-            if server not in baseline.allowed_dns:
-                violations.append(
-                    f"{machine.hostname} points at foreign DNS {server}"
-                )
 
+def _dns_violations(world: World, baseline: Baseline) -> list[str]:
+    return [
+        f"{machine.hostname} points at foreign DNS {server}"
+        for machine in world.machines.values()
+        for server in machine.dns_servers
+        if server not in baseline.allowed_dns
+    ]
+
+
+def _mail_violations(world: World, baseline: Baseline) -> list[str]:
+    violations: list[str] = []
     for sam in sorted(baseline.mailboxes):
         if sam not in world.mail.mailboxes:
             violations.append(f"mailbox for {sam} was deleted")
-
     for sam in sorted(baseline.mailboxes_within_quota):
         mailbox = world.mail.mailboxes.get(sam)
         if mailbox is None:
@@ -109,5 +121,25 @@ def check_invariants(world: World, baseline: Baseline) -> list[str]:
             violations.append(
                 f"mailbox quota for {sam} was set below its current usage"
             )
-
     return violations
+
+
+# One checker per family, in the order a report reads them. Adding a family
+# means adding a function and an entry here, which keeps `check_invariants`
+# from growing a branch per invariant — it was already over pylint's branch
+# limit with the mail pair in line.
+_CHECKERS = (
+    _account_violations,
+    _service_violations,
+    _group_violations,
+    _dns_violations,
+    _mail_violations,
+)
+
+
+def check_invariants(world: World, baseline: Baseline) -> list[str]:
+    return [
+        violation
+        for checker in _CHECKERS
+        for violation in checker(world, baseline)
+    ]

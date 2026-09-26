@@ -152,7 +152,12 @@ every item remains true. What Phase 2b adds:
     `reporters()`** — a server, a distribution list, a group. `resolved_reporters`
     returns `[]` otherwise and the ticket goes to nobody, which surfaces as a
     `KeyError`/`IndexError` well away from the fault that caused it.
-32. **`HTTP_FIX` maps a fault to an ordered *list* of steps.** A repair needing
+32. **Read pylint's exit code, not its score line.** One finding rounds away in a
+    codebase this size: the rating still reads `10.00/10` while pylint exits 8.
+    `uv run pylint src | tail -3` looks clean and CI fails — which is how a
+    `too-many-branches` finding got past a local check on this branch. `| tail`
+    hides the exit status as well as the message.
+33. **`HTTP_FIX` maps a fault to an ordered *list* of steps.** A repair needing
     two world changes needs two entries, or `resolve_via_http` posts half the fix
     and the ticket grades as closed-but-unfixed.
 
