@@ -137,6 +137,8 @@ def test_v1_catalog_is_complete():
         "net.wrong_subnet_mask", "net.gateway_misconfigured", "net.stale_proxy",
         "net.duplicate_static_ip",
         "print.printer_offline", "print.stuck_job", "print.driver_after_model_swap",
+        "endpoint.corrupt_profile", "endpoint.service_disabled",
+        "endpoint.time_skew", "endpoint.runaway_process",
     }
 
 

@@ -10,30 +10,41 @@ from vitsc.tools.registry import all_tools
 from vitsc.web.app import create_app
 from vitsc.web.deps import AppSession
 
-# fault id -> (tool, command) for the HTTP call that performs its canonical
-# fix. Each DispatchTool decides its own command set (vitsc/tools/*.py), so
-# this table has to name the exact command per fault -- there's no generic
-# way to derive it from the Action alone.
+# fault id -> the ordered (tool, command) steps that perform its canonical fix
+# through HTTP. A list rather than a single pair: several Phase 2b repairs take
+# two steps, because the world genuinely needs two changes — a disabled service
+# has to be enabled *and* started, and a machine holding a static address has to
+# be put back on DHCP *and* given a lease. Each DispatchTool decides its own
+# command set (vitsc/tools/*.py), so this table has to name the exact commands
+# per fault -- there's no generic way to derive them from the Actions alone.
 HTTP_FIX = {
-    "ad.account_locked": ("ad", "unlock"),
-    "ad.password_expired": ("ad", "reset-password"),
-    "share.group_membership_removed": ("ad", "add-member"),
-    "net.static_dns_misconfig": ("net", "set-dns"),
-    "net.no_dhcp_lease": ("net", "renew"),
-    "print.spooler_stopped": ("print", "restart-spooler"),
-    "print.wrong_driver": ("print", "reinstall-driver"),
-    "print.server_spooler_stopped": ("print", "restart-spooler"),
-    "endpoint.disk_full": ("remote", "clear-disk"),
-    "mail.mailbox_full": ("mail", "set-quota"),
-    "ad.cached_credentials_stale": ("remote", "refresh-credentials"),
-    "ad.nested_group_membership": ("ad", "nest-group"),
-    "net.wrong_subnet_mask": ("net", "renew"),
-    "net.gateway_misconfigured": ("net", "renew"),
-    "net.stale_proxy": ("net", "clear-proxy"),
-    "net.duplicate_static_ip": ("net", "enable-dhcp"),
-    "print.printer_offline": ("print", "reset-printer"),
-    "print.stuck_job": ("print", "clear-queue"),
-    "print.driver_after_model_swap": ("print", "push-driver"),
+    "ad.account_locked": [("ad", "unlock")],
+    "ad.password_expired": [("ad", "reset-password")],
+    "share.group_membership_removed": [("ad", "add-member")],
+    "net.static_dns_misconfig": [("net", "set-dns")],
+    "net.no_dhcp_lease": [("net", "renew")],
+    "print.spooler_stopped": [("print", "restart-spooler")],
+    "print.wrong_driver": [("print", "reinstall-driver")],
+    "print.server_spooler_stopped": [("print", "restart-spooler")],
+    "endpoint.disk_full": [("remote", "clear-disk")],
+    "mail.mailbox_full": [("mail", "set-quota")],
+    # Phase 2b.
+    "ad.cached_credentials_stale": [("remote", "refresh-credentials")],
+    "ad.nested_group_membership": [("ad", "nest-group")],
+    "net.wrong_subnet_mask": [("net", "renew")],
+    "net.gateway_misconfigured": [("net", "renew")],
+    "net.stale_proxy": [("net", "clear-proxy")],
+    "net.duplicate_static_ip": [("net", "enable-dhcp"), ("net", "renew")],
+    "print.printer_offline": [("print", "reset-printer")],
+    "print.stuck_job": [("print", "clear-queue")],
+    "print.driver_after_model_swap": [("print", "push-driver")],
+    "endpoint.corrupt_profile": [("remote", "rebuild-profile")],
+    "endpoint.service_disabled": [
+        ("remote", "enable-service"),
+        ("remote", "restart-service"),
+    ],
+    "endpoint.time_skew": [("remote", "resync-time")],
+    "endpoint.runaway_process": [("remote", "kill-process")],
 }
 
 # Each DispatchTool also decides its own field name for "the thing this
@@ -57,22 +68,38 @@ TARGET_FIELD = {
     "reset-printer": "printer",
     "clear-queue": "printer",
     "push-driver": "printer",
+    "rebuild-profile": "host",
+    "enable-service": "host",
+    "restart-service": "host",
+    "resync-time": "host",
+    "kill-process": "host",
 }
 
 
 def resolve_via_http(client, ticket, fault, world):
     """Submit the fault's canonical fix through POST /ticket/{id}/tool,
     exercising the real tool-name/command dispatch and args parsing instead
-    of mutating the environment directly."""
+    of mutating the environment directly.
+
+    Every action in the path, in order, not just the first: a repair that needs
+    two changes to the world is only proven through HTTP if both of them go
+    through HTTP.
+    """
     resolution = bind(fault.canonical_resolutions()[0], ticket.placement, world)
-    action = resolution.actions[0]
-    tool, command = HTTP_FIX[fault.id]
-    form_args = {TARGET_FIELD[command]: action.target, **action.args}
-    raw_args = " ".join(f"{k}={v}" for k, v in form_args.items())
-    r = client.post(f"/ticket/{ticket.id}/tool",
-                     data={"tool": tool, "command": command, "args": raw_args})
-    assert r.status_code == 200
-    return r
+    steps = HTTP_FIX[fault.id]
+    assert len(steps) == len(resolution.actions), (
+        f"{fault.id}: HTTP_FIX lists {len(steps)} step(s) for a "
+        f"{len(resolution.actions)}-action fix"
+    )
+    responses = []
+    for (tool, command), action in zip(steps, resolution.actions):
+        form_args = {TARGET_FIELD[command]: action.target, **action.args}
+        raw_args = " ".join(f"{k}={v}" for k, v in form_args.items())
+        r = client.post(f"/ticket/{ticket.id}/tool",
+                        data={"tool": tool, "command": command, "args": raw_args})
+        assert r.status_code == 200
+        responses.append(r)
+    return responses[-1]
 
 
 @pytest.mark.parametrize("seed", range(8))
@@ -136,10 +163,24 @@ def test_every_resolvable_fault_has_an_http_fix_mapped():
 
 def test_every_http_fix_names_a_real_command_and_target_field():
     """The other half: an entry can exist and still be unpostable."""
-    for fault_id, (tool, command) in HTTP_FIX.items():
-        assert command in TARGET_FIELD, f"{fault_id}: {command} has no TARGET_FIELD"
-        registered = next(t for t in all_tools() if t.name == tool)
-        assert command in registered.commands(), f"{fault_id}: {tool} has no {command}"
+    for fault_id, steps in HTTP_FIX.items():
+        assert steps, f"{fault_id}: no steps listed"
+        for tool, command in steps:
+            assert command in TARGET_FIELD, f"{fault_id}: {command} has no TARGET_FIELD"
+            registered = next(t for t in all_tools() if t.name == tool)
+            assert command in registered.commands(), f"{fault_id}: {tool} has no {command}"
+
+
+def test_every_http_fix_has_a_step_for_every_action_of_the_canonical_path():
+    """The failure this guards is silent: a table entry listing one step for a
+    two-action repair posts half the fix, and the ticket then grades as closed
+    without the fault cleared -- which reads as a grading bug rather than a
+    stale table."""
+    for fault_id, steps in HTTP_FIX.items():
+        actions = get_fault(fault_id).canonical_resolutions()[0].actions
+        assert len(steps) == len(actions), (
+            f"{fault_id}: {len(steps)} step(s) listed for {len(actions)} action(s)"
+        )
 
 
 def test_every_fault_in_the_catalog_can_be_closed_correctly(tmp_path):

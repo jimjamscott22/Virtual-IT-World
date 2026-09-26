@@ -18,9 +18,19 @@ def test_every_fault_declares_reporters():
 
 
 def test_single_reporter_faults_open_exactly_one_ticket():
+    """Named explicitly rather than drawn from the scheduler.
+
+    This used to call `open_ticket()` on a fixed seed and assert the arrival was
+    one ticket, which quietly depended on that seed not dealing a cascade. There
+    are five cascade faults now and seed 2 deals one, so the test was asserting
+    something about the seed rather than about `reporters()` returning `None` --
+    convention 24 in the handoff, hit for the fourth time.
+    """
     env = SimulatedEnvironment(load_world())
     queue = SessionQueue(env=env, persona=TemplatePersona(), rng=Random(2), now=env.world.clock)
-    tickets = queue.open_ticket()
+    fault = get_fault("ad.account_locked")
+    assert fault.reporters(env.world, fault.placements(env.world)[0]) is None
+    tickets = queue.open_cascade(fault)
     assert len(tickets) == 1
     assert tickets[0].cascade_id is None
 

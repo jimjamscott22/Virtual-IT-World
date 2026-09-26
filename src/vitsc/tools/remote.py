@@ -18,6 +18,12 @@ class RemoteSession(DispatchTool):
     WRITES = {
         "clear-disk": "machine.clear_disk",
         "enable-service": "machine.enable_service",
+        # The tool that shows you a service's state should let you start it.
+        # Before this, the only restarts reachable through the UI were
+        # `print restart-spooler` (which hardcodes Spooler) and PowerShell's
+        # `Restart-Service`, so a stopped service with any other name had no
+        # obvious repair from the console that reported it.
+        "restart-service": "machine.restart_service",
         "rebuild-profile": "machine.rebuild_profile",
         "resync-time": "machine.resync_time",
         "refresh-credentials": "machine.refresh_credentials",
