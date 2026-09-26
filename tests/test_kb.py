@@ -31,6 +31,20 @@ def test_every_fault_kb_link_resolves():
             assert get_article(article_id) is not None, f"{fault.id} links missing {article_id}"
 
 
+def test_no_orphans_in_either_direction():
+    """Phase 2b's Definition of Done, as a test rather than a promise.
+
+    An article no fault links is one the after-action never offers, so nobody
+    reads it; a fault with no article has nothing to suggest after a ticket the
+    technician got wrong. Both are easy to create by accident and invisible
+    without this — `mail-cannot-send-or-receive` shipped inert for a whole phase.
+    """
+    articles = set(load_articles())
+    linked = {article_id for fault in all_faults() for article_id in fault.kb_articles}
+    assert articles - linked == set(), "articles no fault links"
+    assert [f.id for f in all_faults() if not f.kb_articles] == []
+
+
 def test_articles_are_procedural():
     """Each article tells you how to check something, not what the answer is."""
     for a in load_articles().values():

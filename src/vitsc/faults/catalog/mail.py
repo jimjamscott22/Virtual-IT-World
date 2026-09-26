@@ -195,7 +195,11 @@ class TransportStalled(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["transport", "queue", "service", "spool"]
     escalation_is_correct = False
-    kb_articles = ["mail-cannot-send-or-receive", "general-triage-first-questions"]
+    kb_articles = [
+        "mail-cannot-send-or-receive",
+        "general-triage-first-questions",
+        "general-meridian-estate",
+    ]
 
     def placements(self, world: World) -> list[Placement]:
         return [Placement(kind="machine", key=world.mail.server)]

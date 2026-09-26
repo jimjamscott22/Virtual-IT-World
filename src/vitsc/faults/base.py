@@ -39,10 +39,13 @@ def sub_group_name(parent: str) -> str:
 class Placement(BaseModel):
     """A world entity a fault is attached to."""
 
-    # `list` is a mail distribution list, added in Phase 2b. A fault placed on
-    # one has to declare its own `reporters()`: nothing about a list resolves to
-    # a person the way `Machine.assigned_to` does.
-    kind: Literal["user", "machine", "printer", "share", "list"]
+    # `list` (a mail distribution list) and `group` (a directory group) were
+    # added in Phase 2b, for the same reason the earlier four are spelled out:
+    # this field is what the session layer reads to find a person, and calling a
+    # distribution list a machine would have been a lie in exactly that field.
+    # Anything placed on a `list` or a `group` must declare its own
+    # `reporters()` — neither resolves to a person the way `assigned_to` does.
+    kind: Literal["user", "machine", "printer", "share", "list", "group"]
     key: str
 
 

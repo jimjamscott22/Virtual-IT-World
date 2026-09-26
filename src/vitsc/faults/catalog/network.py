@@ -150,7 +150,13 @@ class WrongSubnetMask(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["mask", "prefix", "route", "routing"]
     escalation_is_correct = False
-    kb_articles = ["network-no-internet", "network-address-settings"]
+    kb_articles = [
+        "network-no-internet",
+        "network-address-settings",
+        # Which subnet the site runs on is the fact this fault turns on, and it
+        # is in the estate article rather than derivable from the machine.
+        "general-meridian-estate",
+    ]
 
     def placements(self, world: World) -> list[Placement]:
         return _workstations(world)

@@ -194,7 +194,9 @@ class ServerSpoolerStopped(FaultBase):
     supported_backends = frozenset({"simulated", "winrm"})
     leak_terms = ["spool", "service", "server", "queue"]
     escalation_is_correct = False
-    kb_articles = ["printing-nothing-prints"]
+    # The estate article is what tells you every printer in the building queues
+    # through one server, which is the whole reason several people report at once.
+    kb_articles = ["printing-nothing-prints", "general-meridian-estate"]
 
     def placements(self, world: World) -> list[Placement]:
         return _print_servers(world)
