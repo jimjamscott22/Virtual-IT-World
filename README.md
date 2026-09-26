@@ -29,18 +29,22 @@ tickets, and an unnecessary escalation can be returned by simulated tier 2.
 - A FastAPI and HTMX web interface with a live ticket queue and simulated clock.
 - Priority selection, SLA tracking, ticket chat, closure, and reviewed tier-2
   escalation.
-- Eleven faults across identity, endpoint, networking, file shares, and
-  printing, including a multi-user print-server incident.
-- Five non-ticketable distractors that add realistic noise without causing the
+- Thirty-one faults across identity, networking, printing, endpoint, and mail,
+  including five multi-user incidents that open several tickets from one cause.
+- Four faults where escalating is the correct answer and fixing it yourself is
+  not, each for a different reason.
+- Eleven non-ticketable distractors that add realistic noise without causing the
   reported issue.
+- A fourteen-article knowledge base of procedures, deliberately containing no
+  answer keys.
 - Eight technician tools: AD console, PowerShell, networking, Event Viewer,
   print management, remote session, knowledge base, and mail console.
 - Template-driven user personas by default, with an optional LM Studio-backed
   persona for more natural conversations.
 - Per-ticket grading, cascade-aware duplicate-fix detection, after-action
   reports, and SQLite history for closed tickets.
-- A stable lab environment containing 12 users, 6 workstations, 4 servers,
-  3 printers, 4 department shares, and 12 mailboxes.
+- A stable lab environment containing 20 users, 10 workstations, 4 servers,
+  5 printers, 5 department shares, 20 mailboxes, and 4 distribution lists.
 - Automated conformance checks proving that registered faults are diagnosable,
   repairable, and isolated from the technician tools.
 
@@ -173,6 +177,7 @@ architecture tests enforce this boundary.
 ## Documentation
 
 - [Phase 2a depth-mechanics plan](docs/superpowers/plans/2026-08-14-phase-2a-depth-mechanics.md)
+- [Phase 2b catalog plan](docs/superpowers/plans/2026-08-14-phase-2b-catalog.md)
 - [Current development handoff](docs/handoff.md)
 - [LM Studio verification guide](docs/verifying-lmstudio.md)
 
@@ -182,12 +187,17 @@ Released under the [MIT License](LICENSE).
 
 ## Current state
 
-As of **September 4, 2026**, Phase 1 is complete and Phase 2a Tasks 1–14 are
-merged into `main`. The repository currently contains 11 registered faults, 5
-distractors, 8 technician tools, and 564 automated tests. The mail world model,
-mail query/action layer, and mail console are implemented.
+As of **September 26, 2026**, Phase 1 and Phase 2a are complete, and Phase 2b
+has taken the catalog to its target breadth. The repository contains 31
+registered faults (identity 7, networking 6, printing 6, endpoint 6, mail 6),
+11 distractors, 14 knowledge-base articles, 8 technician tools, and 1,632
+automated tests.
 
-The next planned checkpoint is Phase 2a Task 15: add the two reference mail
-faults (`mail.mailbox_full` and `mail.external_forwarding_rule`). The
-model-backed LM Studio path still requires the manual verification described
-above; the model-free application and test suite do not depend on it.
+Every item in Phase 2b's definition of done is met except one inherited from
+Phase 2a: the model-backed LM Studio path still requires the manual verification
+described above, because no development environment so far has had network access
+to a local model. The model-free application and test suite do not depend on it.
+
+The likely next steps, in the order they would pay off, are that verification, a
+visual styling pass now that the drill is content-complete, and a career-to-date
+progress view across sessions.

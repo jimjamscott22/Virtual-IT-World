@@ -1,8 +1,14 @@
 # Phase 2b: catalog breadth
 
-**Status:** outline only. Written at the end of Phase 2a, deliberately as a
-skeleton — the per-task detail belongs in a plan written against finished 2a
-code rather than guessed at now. Fill it in before starting Task 1.
+**Status:** **complete**, except for the LM Studio verification the Definition
+of Done inherits from Phase 2a, which needs a machine with the model running.
+
+Written at the end of Phase 2a as a skeleton, deliberately, on the grounds that
+per-task detail belonged in a plan written against finished 2a code. It was never
+filled in per task and did not need to be: the domain table below was enough to
+work from, and the faults were built a domain at a time rather than a task at a
+time. `docs/handoff.md` says what landed and in which commit; the fault modules
+say what each fault is; `CLAUDE.md` carries the architecture and the deviations.
 
 **Prior plan:** `docs/superpowers/plans/2026-08-14-phase-2a-depth-mechanics.md`
 (Tasks 1–17, complete).
@@ -27,6 +33,14 @@ that no domain is thin and no mechanic has only one instance.
 
 The measure of success is not the count. It is that a player who has worked
 twenty tickets still cannot predict the cause from the first sentence.
+
+**Met: 31 faults**, exactly the 18 more, with no domain below six and every
+mechanic instantiated more than once — five cascades across three domains, four
+escalate-correct faults for four different reasons. The unpredictability is
+structural rather than asserted: within one domain the *observable* signatures
+differ (the four network faults are distinguishable only by which probes still
+pass), and three endpoint faults are deliberately traps for the reflex fix that
+the nearest-looking fault would have wanted.
 
 ## Constraints
 
@@ -63,12 +77,15 @@ A task adds *new query/action kinds* only when no existing kind can express
 the fault. That is the expensive kind of task (`env/simulated.py` +
 `tools/*.py` + tests), and it is called out below where it is unavoidable.
 
+What was built, against what was proposed. The candidate lists were followed
+closely; the two substitutions are noted:
+
 | Domain | Have | Add | Candidates |
 |---|---|---|---|
 | identity | 4 | +3 | expired cached credentials on a laptop; a group nested one level deeper than the obvious one; a UPN/sam mismatch after a name change (escalate-correct — needs HR to confirm the legal name) |
 | network | 2 | +4 | wrong subnet mask; a duplicate static IP (**cascade** — two machines, two tickets); gateway unreachable; a proxy setting left behind |
-| printing | 3 | +3 | printer offline at the device; a stuck job at the head of the queue (**new action kind**: clear a print queue); a driver mismatch after a model swap |
-| endpoint | 2 | +4 | corrupt user profile; a service set to Disabled rather than merely stopped (the differential against `print.spooler_stopped`); time skew breaking authentication; RAM failure (escalate-correct) |
+| printing | 3 | +3 | printer offline at the device; a stuck job at the head of the queue (**new action kind**: clear a print queue); a driver mismatch after a model swap — built as a *cascade* on the printer itself, with a server-side `printer.push_driver` publish, because a fault affecting every workstation that has a printer has no single canonical repair otherwise |
+| endpoint | 2 | +4 | corrupt user profile; a service set to Disabled rather than merely stopped (the differential against `print.spooler_stopped`); time skew breaking authentication; ~~RAM failure (escalate-correct)~~ **→ a runaway process**. RAM failure would have been escalate-correct for the *same* reason as `endpoint.failing_disk` — the failing part is physical — and the Definition of Done forbids two escalate-correct faults sharing a reason. The fourth escalate-correct slot went to `ad.upn_mismatch` instead, whose reason (nobody in IT knows the correct value) is genuinely new. A runaway process also earns its place independently: it is the fault that teaches the process table |
 | mail | 2 | +4 | transport queue stalled (**cascade** — several people report late mail); a delegate left over from a departed employee; an autodiscover failure; a distribution list nobody owns |
 
 Alongside the faults:
@@ -134,24 +151,52 @@ while writing them:
 
 ## Definition of Done
 
-- [ ] 30+ faults registered, conforming across every placement, in all five
-      domains, with no domain below five.
-- [ ] At least two cascade faults in different domains, and at least four
+All met except the last, which Phase 2a also could not tick. `docs/handoff.md`
+carries the same table with the evidence for each line.
+
+- [x] 30+ faults registered, conforming across every placement, in all five
+      domains, with no domain below five. **31, none below six.**
+- [x] At least two cascade faults in different domains, and at least four
       escalate-correct faults — still no two escalate-correct for the same
-      reason.
-- [ ] Every fault links at least one KB article, and every article is linked
-      by at least one fault (no orphans in either direction).
-- [ ] Distractor count scaled to the catalog, all passing the non-interference
-      harness.
-- [ ] Mail invariants land, with a fault that trips them when fixed wrongly.
-- [ ] The escalation-disposition inconsistency is resolved, one way or the
-      other, deliberately.
-- [ ] Every fault's `difficulty` chosen as a frequency decision, not just a
-      hardness one — see "Settled before Task 1" above.
-- [ ] A full eight-hour shift is workable end to end, and the `/shift`
-      summary reads correctly for a good shift and a bad one.
-- [ ] `uv run pytest` green with nothing on localhost; `uv run pylint src`
-      and `tests` at 10.00/10.
-- [ ] A full ticket can be worked in the browser in all five domains, and a
+      reason. **Five cascades in three domains; four reasons: authorisation,
+      hardware, acting-destroys-the-evidence, nobody-knows-the-value.**
+- [x] Every fault links at least one KB article, and every article is linked
+      by at least one fault (no orphans in either direction). **Proved by
+      `tests/test_kb.py:test_no_orphans_in_either_direction`, both directions.**
+- [x] Distractor count scaled to the catalog, all passing the non-interference
+      harness. **Eleven, and the count is a ratio to the fault count so adding
+      faults without adding noise fails a test.**
+- [x] Mail invariants land, with a fault that trips them when fixed wrongly.
+      **Both trippable on `mail.mailbox_full` through HTTP: deleting the mailbox,
+      and setting a quota below current usage.**
+- [x] The escalation-disposition inconsistency is resolved, one way or the
+      other, deliberately. **One reviewed path. The dropdown option is gone and
+      the route refuses the disposition, because a template-only fix leaves the
+      unreviewed path open to anything posting the form.**
+- [x] Every fault's `difficulty` chosen as a frequency decision, not just a
+      hardness one. **5/13/10/3 across difficulties 1–4; ~68% of dealt tickets
+      are routine, and that is asserted rather than hoped for.**
+- [x] A full eight-hour shift is workable end to end, and the `/shift` summary
+      reads correctly for a good shift and a bad one. **Driven on a real server.
+      This is where the summary was found to be counting *previous* shifts.**
+- [x] `uv run pytest` green with nothing on localhost; `uv run pylint src`
+      and `tests` at 10.00/10. **1632 passing.**
+- [x] A full ticket can be worked in the browser in all five domains, and a
       player working twenty consecutive tickets cannot predict the cause from
-      the opening line.
+      the opening line. **Automated for all 31 faults; a cascade and a
+      `net.stale_proxy` ticket also worked by hand through a real server.**
+- [ ] *Inherited from Phase 2a:* the suite green with LM Studio running, and
+      `VITSC_PERSONA=lmstudio` roleplaying every ticket with the degraded banner
+      appearing when the model stops. **Not verifiable from a sandbox with no
+      network to a local model.** `docs/verifying-lmstudio.md` is the procedure.
+
+## What the next plan should probably cover
+
+Not decided here — recorded so the question is not re-derived:
+
+1. **The LM Studio verification**, which is the last unticked item across two
+   phases and needs only a machine with the model running.
+2. **A styling pass.** The drill is content-complete now and looks it; every
+   class added since Phase 2a is unstyled.
+3. **Career-to-date progress across sessions.** `Store.history()` and
+   `domain_stats()` already take `all_sessions=True`; nothing asks.
