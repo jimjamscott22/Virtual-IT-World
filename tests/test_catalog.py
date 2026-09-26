@@ -126,13 +126,14 @@ def test_v1_catalog_is_complete():
     ids = {f.id for f in all_faults()}
     assert ids == {
         "ad.account_locked", "ad.password_expired", "ad.offboarded_reactivation",
+        "ad.cached_credentials_expired",
         "share.group_membership_removed", "print.spooler_stopped", "print.wrong_driver",
         "print.server_spooler_stopped",
         "net.static_dns_misconfig", "net.no_dhcp_lease",
         "endpoint.disk_full", "endpoint.failing_disk",
         "mail.mailbox_full", "mail.external_forwarding_rule",
         # Phase 2b.
-        "ad.cached_credentials_stale", "ad.nested_group_membership",
+        "ad.password_change_not_cached", "ad.nested_group_membership",
         "ad.upn_mismatch",
         "net.wrong_subnet_mask", "net.gateway_misconfigured", "net.stale_proxy",
         "net.duplicate_static_ip",

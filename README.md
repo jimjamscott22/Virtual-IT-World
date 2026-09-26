@@ -29,8 +29,11 @@ tickets, and an unnecessary escalation can be returned by simulated tier 2.
 - A FastAPI and HTMX web interface with a live ticket queue and simulated clock.
 - Priority selection, SLA tracking, ticket chat, closure, and reviewed tier-2
   escalation.
-- Thirty-one faults across identity, networking, printing, endpoint, and mail,
-  including five multi-user incidents that open several tickets from one cause.
+- A fixed eight-hour simulated shift with an end-of-shift summary at `/shift`.
+- Thirty-two faults across identity, networking, printing, endpoint, and mail,
+  including five multi-user incidents that open several tickets from one cause,
+  and difficulty-weighted scheduling so the hard, rare faults stay rare on
+  purpose.
 - Four faults where escalating is the correct answer and fixing it yourself is
   not, each for a different reason.
 - Eleven non-ticketable distractors that add realistic noise without causing the
@@ -42,7 +45,7 @@ tickets, and an unnecessary escalation can be returned by simulated tier 2.
 - Template-driven user personas by default, with an optional LM Studio-backed
   persona for more natural conversations.
 - Per-ticket grading, cascade-aware duplicate-fix detection, after-action
-  reports, and SQLite history for closed tickets.
+  reports, a local knowledge base, and SQLite history for closed tickets.
 - A stable lab environment containing 20 users, 10 workstations, 4 servers,
   5 printers, 5 department shares, 20 mailboxes, and 4 distribution lists.
 - Automated conformance checks proving that registered faults are diagnosable,
@@ -188,10 +191,17 @@ Released under the [MIT License](LICENSE).
 ## Current state
 
 As of **September 26, 2026**, Phase 1 and Phase 2a are complete, and Phase 2b
-has taken the catalog to its target breadth. The repository contains 31
-registered faults (identity 7, networking 6, printing 6, endpoint 6, mail 6),
-11 distractors, 14 knowledge-base articles, 8 technician tools, and 1,632
-automated tests.
+has taken the catalog to its target breadth. The repository contains 32
+registered faults (identity 8, networking 6, printing 6, endpoint 6, mail 6),
+11 distractors, 15 knowledge-base articles, 8 technician tools, and 1,662
+automated tests, all passing with `uv run pylint` at 10.00/10 on both `src` and
+`tests`.
+
+The estate grew during Phase 2b's groundwork to 20 users and 10 workstations, the
+drill gained a fixed eight-hour shift (`/shift`), and the ticket scheduler now
+draws faults weighted by `difficulty` rather than by placement count, so a
+fault's rarity is a deliberate choice instead of an accident of how many targets
+it has.
 
 Every item in Phase 2b's definition of done is met except one inherited from
 Phase 2a: the model-backed LM Studio path still requires the manual verification

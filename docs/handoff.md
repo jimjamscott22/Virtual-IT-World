@@ -13,10 +13,10 @@ Architecture lives in `CLAUDE.md`, which is current.
 | | |
 | --- | --- |
 | Branch | `claude/game-dev-progress-review-i56yyx` |
-| Base | `main` at `27276e8` (Phase 2b groundwork) |
-| Tests | 1632 passing, 0 xfailed |
+| Base | `main` at `8a8d750`, merged in — see the collision section |
+| Tests | 1662 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
-| Catalog | 31 faults — identity 7, network 6, printing 6, endpoint 6, mail 6 |
+| Catalog | 32 faults — identity 8, network 6, printing 6, endpoint 6, mail 6 |
 
 ## What landed
 
@@ -33,7 +33,7 @@ new reads, sixteen new actions, and the routing model in `_reachable()`.
 
 **The faults**, one commit per domain:
 
-- identity `4113425` — `ad.cached_credentials_stale`,
+- identity `4113425` — `ad.password_change_not_cached`,
   `ad.nested_group_membership`, `ad.upn_mismatch` (the fourth escalate-correct
   reason: nobody in IT knows the right answer).
 - network `9107f88` — `net.wrong_subnet_mask`, `net.gateway_misconfigured`,
@@ -51,6 +51,34 @@ new reads, sixteen new actions, and the routing model in `_reachable()`.
 **The rest of the plan's list**: KB grown to fourteen articles with no orphans
 either way and distractors to eleven (`1cacf73`); the mail invariants and the
 single escalation path (`86dc208`); the store's session scoping (`dbfb405`).
+
+## Task 1 was built twice — read this before touching `identity.py`
+
+Convention 23 again, for the second time in this project's life (Phase 2a's Task
+15 was the first). While this branch was working the whole of 2b,
+**`ad.cached_credentials_expired` landed on `main` independently** as 2b's Task 1.
+Two sessions, same plan line, two different faults.
+
+They were **both kept**, because they are not the same fault:
+
+| | `ad.cached_credentials_expired` (from `main`) | `ad.password_change_not_cached` (this branch) |
+| --- | --- | --- |
+| mechanism | `Netlogon` stopped — the machine's channel to the domain is down | the cached credential is older than the password |
+| symptom | signed in fine, but drives, printers and mail all fail | the *new* password is rejected here, the old one works |
+| the tell | `ad get-user` reads completely clean | `LastDomainSync` predates `PasswordLastSet` |
+| fix | restart `Netlogon` | `remote refresh-credentials` |
+
+The one on `main` is kept exactly as its author wrote it, including its
+`HTTP_FIX` entry (converted to the step-list shape). **This branch's fault was
+renamed** from `ad.cached_credentials_stale` to `ad.password_change_not_cached`:
+two ids both reading `cached_credentials_*` are indistinguishable in an
+after-action, and the unmerged one is the one to move. Naming it for its
+mechanism also makes the pair legible — one is about the channel, the other about
+what the channel last carried.
+
+Nothing else collided mechanically. Their fault gates on a service state and
+mine on two timestamps, so neither can flip the other, and the merge needed no
+compromise on either.
 
 ## Four bugs found by driving the app, not by the suite
 
@@ -80,7 +108,7 @@ Checked item by item against the plan's own list.
 
 | | Item | Status |
 |---|---|---|
-| 1 | 30+ faults, conforming across every placement, all five domains, none below five | ✅ 31, none below six |
+| 1 | 30+ faults, conforming across every placement, all five domains, none below five | ✅ 32, none below six |
 | 2 | Two cascades in different domains; four escalate-correct, no two for the same reason | ✅ five cascades in three domains; four reasons — authorisation, hardware, acting-destroys-evidence, nobody-knows-the-value |
 | 3 | Every fault links an article; every article is linked | ✅ proved by `test_no_orphans_in_either_direction` |
 | 4 | Distractor count scaled to the catalog, all passing the harness | ✅ eleven, ratio-guarded |
@@ -88,8 +116,8 @@ Checked item by item against the plan's own list.
 | 6 | The escalation-disposition inconsistency resolved deliberately | ✅ one reviewed path; the dropdown option is gone and the route refuses it |
 | 7 | Every fault's `difficulty` chosen as a frequency decision | ✅ 5/13/10/3 across 1–4; ~68% of dealt tickets are routine, asserted |
 | 8 | A full eight-hour shift workable end to end; `/shift` reads correctly for a good shift and a bad one | ✅ driven on a real server; a deliberately mixed shift reads "2 of 3 closed correctly" |
-| 9 | `uv run pytest` green with nothing on localhost; pylint 10.00/10 on both targets | ✅ |
-| 10 | A full ticket workable in the browser in all five domains, and twenty consecutive tickets unpredictable | ✅ automated for all 31 (`test_every_fault_in_the_catalog_can_be_closed_correctly`); a cascade and a `net.stale_proxy` ticket also worked by hand on a real server |
+| 9 | `uv run pytest` green with nothing on localhost; pylint 10.00/10 on both targets | ✅ — and read pylint's *exit code*, not its score line; see convention 32 |
+| 10 | A full ticket workable in the browser in all five domains, and twenty consecutive tickets unpredictable | ✅ automated for all 32 (`test_every_fault_in_the_catalog_can_be_closed_correctly`); a cascade and a `net.stale_proxy` ticket also worked by hand on a real server |
 | — | LM Studio: suite green with it running, and `VITSC_PERSONA=lmstudio` roleplaying every ticket | ⬜ **inherited from Phase 2a and still unverified.** No sandbox has had network to a local LM Studio. `docs/verifying-lmstudio.md` is the manual procedure; a green pipeline does not stand in for it |
 
 ## Open threads
@@ -112,6 +140,10 @@ Checked item by item against the plan's own list.
   twice for one cause. But it means a *second* fault can read as present while
   the first is active, and if a future feature ever asks "which fault is this
   world in", it will need a tie-break that does not exist today.
+- **A third cached-credentials-adjacent fault would now be one too many.** The
+  pair described in the collision section above is legible because the two
+  mechanisms are genuinely different; a third fault in that area should either
+  replace one of them or pick a different part of the estate.
 - **`mail.transport_stalled` and `mail.autodiscover_broken` share a placement**
   (`MER-MB-01`). Fine today; worth knowing if placement-holding ever becomes
   keyed on the placement alone rather than on fault + placement.
@@ -164,9 +196,10 @@ every item remains true. What Phase 2b adds:
 ## Resuming
 
 ```bash
-git checkout claude/game-dev-progress-review-i56yyx
+git checkout main
+git pull
 uv sync
-uv run pytest          # expect 1632 passed, 0 xfailed
+uv run pytest          # expect 1662 passed, 0 xfailed
 uv run python -m vitsc # then work a shift; the drill is the point
 ```
 

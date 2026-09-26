@@ -21,6 +21,9 @@ from vitsc.web.deps import AppSession
 HTTP_FIX = {
     "ad.account_locked": [("ad", "unlock")],
     "ad.password_expired": [("ad", "reset-password")],
+    # Landed on `main` in parallel with this branch; kept as its author wrote it,
+    # converted to the step-list shape.
+    "ad.cached_credentials_expired": [("ps", "Restart-Service")],
     "share.group_membership_removed": [("ad", "add-member")],
     "net.static_dns_misconfig": [("net", "set-dns")],
     "net.no_dhcp_lease": [("net", "renew")],
@@ -30,7 +33,7 @@ HTTP_FIX = {
     "endpoint.disk_full": [("remote", "clear-disk")],
     "mail.mailbox_full": [("mail", "set-quota")],
     # Phase 2b.
-    "ad.cached_credentials_stale": [("remote", "refresh-credentials")],
+    "ad.password_change_not_cached": [("remote", "refresh-credentials")],
     "ad.nested_group_membership": [("ad", "nest-group")],
     "net.wrong_subnet_mask": [("net", "renew")],
     "net.gateway_misconfigured": [("net", "renew")],
@@ -59,6 +62,7 @@ HTTP_FIX = {
 TARGET_FIELD = {
     "unlock": "sam",
     "reset-password": "sam",
+    "Restart-Service": "host",
     "add-member": "group",
     "set-dns": "from",
     "renew": "from",
