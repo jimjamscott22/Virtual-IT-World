@@ -7,12 +7,14 @@ import yaml
 from vitsc.world.models import (
     ADGroup,
     ADUser,
+    DistributionList,
     Machine,
     Mailbox,
     MailSystem,
     Network,
     Organization,
     Printer,
+    Process,
     ServiceState,
     Share,
     World,
@@ -24,6 +26,27 @@ WORKSTATION_SERVICES = {
     "Dnscache": ServiceState.RUNNING,
     "WSearch": ServiceState.RUNNING,
 }
+
+# What a machine at rest is running. A process list nobody ever looks at would
+# be dead weight; this one is the haystack `endpoint.runaway_process` hides a
+# needle in, so the ordinary entries have to look ordinary — modest CPU, the
+# applications a freight clerk actually has open.
+WORKSTATION_PROCESSES = [
+    ("explorer.exe", 1120, 0.6, 138.0),
+    ("OUTLOOK.EXE", 2264, 1.2, 412.0),
+    ("msedge.exe", 3312, 2.4, 620.0),
+    ("SearchIndexer.exe", 1480, 0.3, 96.0),
+    ("MsMpEng.exe", 2088, 1.8, 204.0),
+]
+
+
+def _baseline_processes() -> list[Process]:
+    """A fresh list per machine: one shared list would let a fault applied to
+    one workstation show up in every other machine's process table."""
+    return [
+        Process(name=name, pid=pid, cpu_percent=cpu, memory_mb=mem)
+        for name, pid, cpu, mem in WORKSTATION_PROCESSES
+    ]
 
 
 def load_world(path: Path | None = None) -> World:
@@ -39,6 +62,7 @@ def load_world(path: Path | None = None) -> World:
     )
     clock = raw["clock"]
     net = raw["network"]
+    network = Network(**net)
 
     users: dict[str, ADUser] = {}
     for u in raw["users"]:
@@ -71,6 +95,9 @@ def load_world(path: Path | None = None) -> World:
             services=dict(WORKSTATION_SERVICES),
             disk_free_gb=400.0,
             disk_total_gb=1024.0,
+            subnet_mask=network.netmask,
+            last_domain_sync=clock,
+            processes=_baseline_processes(),
         )
     for w in raw["workstations"]:
         machines[w["hostname"]] = Machine(
@@ -82,6 +109,9 @@ def load_world(path: Path | None = None) -> World:
             dns_servers=list(net["dns_servers"]),
             services=dict(WORKSTATION_SERVICES),
             installed_printers=list(w["printers"]),
+            subnet_mask=network.netmask,
+            last_domain_sync=clock,
+            processes=_baseline_processes(),
         )
 
     printers = {p["name"]: Printer(**p) for p in raw["printers"]}
@@ -105,6 +135,7 @@ def load_world(path: Path | None = None) -> World:
     mail_cfg = raw["mail"]
     mail = MailSystem(
         server=mail_cfg["server"],
+        autodiscover_host=mail_cfg["autodiscover_host"],
         mailboxes={
             sam: Mailbox(
                 owner_sam=sam,
@@ -114,6 +145,19 @@ def load_world(path: Path | None = None) -> World:
             )
             for sam, user in users.items()
         },
+        distribution_lists={
+            dl["name"]: DistributionList(
+                name=dl["name"],
+                address=dl["address"],
+                owner_sam=dl["owner_sam"],
+                members=(
+                    list(users)
+                    if dl["members"] == "all"
+                    else list(groups[dl["members"]].members)
+                ),
+            )
+            for dl in raw["distribution_lists"]
+        },
     )
 
     return World(
@@ -121,7 +165,7 @@ def load_world(path: Path | None = None) -> World:
         machines=machines,
         printers=printers,
         shares=shares,
-        network=Network(**net),
+        network=network,
         mail=mail,
         clock=clock,
     )
