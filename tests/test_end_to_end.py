@@ -27,6 +27,10 @@ HTTP_FIX = {
     "mail.mailbox_full": ("mail", "set-quota"),
     "ad.cached_credentials_stale": ("remote", "refresh-credentials"),
     "ad.nested_group_membership": ("ad", "nest-group"),
+    "net.wrong_subnet_mask": ("net", "renew"),
+    "net.gateway_misconfigured": ("net", "renew"),
+    "net.stale_proxy": ("net", "clear-proxy"),
+    "net.duplicate_static_ip": ("net", "enable-dhcp"),
 }
 
 # Each DispatchTool also decides its own field name for "the thing this
@@ -45,6 +49,8 @@ TARGET_FIELD = {
     "set-quota": "sam",
     "refresh-credentials": "host",
     "nest-group": "group",
+    "clear-proxy": "from",
+    "enable-dhcp": "from",
 }
 
 

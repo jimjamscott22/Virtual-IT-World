@@ -134,6 +134,8 @@ def test_v1_catalog_is_complete():
         # Phase 2b.
         "ad.cached_credentials_stale", "ad.nested_group_membership",
         "ad.upn_mismatch",
+        "net.wrong_subnet_mask", "net.gateway_misconfigured", "net.stale_proxy",
+        "net.duplicate_static_ip",
     }
 
 
