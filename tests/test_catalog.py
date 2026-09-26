@@ -139,6 +139,8 @@ def test_v1_catalog_is_complete():
         "print.printer_offline", "print.stuck_job", "print.driver_after_model_swap",
         "endpoint.corrupt_profile", "endpoint.service_disabled",
         "endpoint.time_skew", "endpoint.runaway_process",
+        "mail.transport_stalled", "mail.stale_delegate",
+        "mail.autodiscover_broken", "mail.ownerless_distribution_list",
     }
 
 

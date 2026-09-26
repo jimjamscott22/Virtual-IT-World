@@ -22,6 +22,7 @@ PLACEHOLDER_MACHINE = "{machine}"
 PLACEHOLDER_GROUP = "{group}"
 PLACEHOLDER_PRINTER = "{printer}"
 PLACEHOLDER_SUB_GROUP = "{sub_group}"
+PLACEHOLDER_MAIL_SERVER = "{mail_server}"
 
 
 def sub_group_name(parent: str) -> str:
@@ -38,7 +39,10 @@ def sub_group_name(parent: str) -> str:
 class Placement(BaseModel):
     """A world entity a fault is attached to."""
 
-    kind: Literal["user", "machine", "printer", "share"]
+    # `list` is a mail distribution list, added in Phase 2b. A fault placed on
+    # one has to declare its own `reporters()`: nothing about a list resolves to
+    # a person the way `Machine.assigned_to` does.
+    kind: Literal["user", "machine", "printer", "share", "list"]
     key: str
 
 
@@ -107,6 +111,7 @@ def _sentinels(at: Placement, world: World) -> dict[str, str]:
         PLACEHOLDER_GROUP: _share_group(world, at) or "",
         PLACEHOLDER_PRINTER: _printer_key(at),
         PLACEHOLDER_SUB_GROUP: sub_group_name(_share_group(world, at) or ""),
+        PLACEHOLDER_MAIL_SERVER: world.mail.server,
     }
 
 
@@ -150,7 +155,7 @@ def _share_group(world: World, at: Placement) -> str | None:
 
 def bind(resolution: ResolutionPath, at: Placement, world: World) -> ResolutionPath:
     """Replace placement sentinels (`{placement}`, `{machine}`, `{group}`,
-    `{printer}`, `{sub_group}`) with concrete world keys.
+    `{printer}`, `{sub_group}`, `{mail_server}`) with concrete world keys.
 
     `canonical_resolutions()` cannot know its placement, so callers bind it.
     """

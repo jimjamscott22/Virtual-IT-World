@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from markupsafe import escape
 
 from vitsc.faults.registry import get_fault
 from vitsc.web.app import create_app
@@ -33,7 +34,11 @@ def test_closing_a_solved_ticket_reports_success(client):
 def test_after_action_reveals_the_root_cause_only_after_closing(client):
     c, session = client
     ticket = session.queue.active()[0]
-    title = get_fault(ticket.fault_id).canonical_title
+    # The escaped form, both times: `root_cause` is autoescaped like any other
+    # template output, so a title containing an apostrophe ("a departed
+    # employee's access") never appears raw -- which would fail the positive
+    # check and, worse, pass the negative one vacuously.
+    title = str(escape(get_fault(ticket.fault_id).canonical_title))
     assert title not in c.get(f"/ticket/{ticket.id}").text
     solve(session, ticket)
     assert title in c.post(f"/ticket/{ticket.id}/close", data={"disposition": "resolved"}).text

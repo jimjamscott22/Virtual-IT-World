@@ -45,6 +45,10 @@ HTTP_FIX = {
     ],
     "endpoint.time_skew": [("remote", "resync-time")],
     "endpoint.runaway_process": [("remote", "kill-process")],
+    "mail.transport_stalled": [("mail", "restart-transport")],
+    "mail.stale_delegate": [("mail", "remove-delegate")],
+    "mail.autodiscover_broken": [("mail", "set-autodiscover")],
+    "mail.ownerless_distribution_list": [("mail", "set-list-owner")],
 }
 
 # Each DispatchTool also decides its own field name for "the thing this
@@ -73,6 +77,10 @@ TARGET_FIELD = {
     "restart-service": "host",
     "resync-time": "host",
     "kill-process": "host",
+    "restart-transport": "host",
+    "remove-delegate": "sam",
+    "set-autodiscover": "host",
+    "set-list-owner": "list",
 }
 
 

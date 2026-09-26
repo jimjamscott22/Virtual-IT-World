@@ -121,16 +121,24 @@ def test_no_duplicate_fault_and_placement_while_active(queue):
 
 
 def test_an_unfixed_fault_is_not_handed_out_again(queue):
-    """Closing a ticket without fixing it must not re-deal the same fault."""
-    ticket = queue.open_one()
-    ticket.close(Disposition.ESCALATED, at=NOW)
+    """Closing a ticket without fixing it must not re-deal the same fault.
+
+    Against the whole first *arrival*, not one ticket of it. `open_one()` hands
+    back the first ticket of whatever was dealt, so on a cascade the siblings
+    share that fault and placement legitimately — comparing against a single
+    ticket counted its own siblings as re-deals (convention 24).
+    """
+    arrival = queue.open_ticket()
+    for ticket in arrival:
+        ticket.close(Disposition.ESCALATED, at=NOW)
+    dealt = (arrival[0].fault_id, arrival[0].placement.key)
+    already = {t.id for t in arrival}
     for _ in range(MAX_ACTIVE):
         queue.open_ticket()
     repeats = [
         t
         for t in queue.tickets
-        if t.id != ticket.id
-        and (t.fault_id, t.placement.key) == (ticket.fault_id, ticket.placement.key)
+        if t.id not in already and (t.fault_id, t.placement.key) == dealt
     ]
     assert repeats == []
 
