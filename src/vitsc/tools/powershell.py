@@ -11,8 +11,11 @@ from vitsc.tools.base import DispatchTool
 _MACHINE_SCOPED = {
     "get-service",
     "restart-service",
+    "set-service",
+    "get-process",
     "get-eventlog",
     "gpupdate",
+    "w32tm",
 }
 
 
@@ -25,10 +28,13 @@ class PowerShellConsole(DispatchTool):
         "Get-PSDrive": "share.access",
         "Test-NetConnection": "net.ping",
         "Get-EventLog": "machine.eventlog",
+        "Get-Process": "machine.processes",
     }
     WRITES = {
         "Restart-Service": "machine.restart_service",
+        "Set-Service": "machine.enable_service",
         "gpupdate": "machine.renew_dhcp",
+        "w32tm": "machine.resync_time",
     }
 
     def target_key(self, command: str, args: dict[str, str]) -> str:
@@ -49,6 +55,8 @@ class PowerShellConsole(DispatchTool):
         # `-ComputerName` is the session's machine; everything downstream of
         # the environment calls that "from".
         out = {**args, "from": args.get("host", "")}
-        if command.lower() in {"get-service", "restart-service"} and "name" in args:
+        if command.lower() in {"get-service", "restart-service", "set-service"} and (
+            "name" in args
+        ):
             out["service"] = args["name"]
         return out

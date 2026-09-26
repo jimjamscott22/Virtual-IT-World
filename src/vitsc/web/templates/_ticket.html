@@ -32,9 +32,10 @@
       Escalate
     </button>
     <form id="close" hx-post="/ticket/{{ ticket.id }}/close" hx-target="#detail" hx-swap="innerHTML">
+      {# Escalation is not a disposition you pick here: it goes through the
+         Escalate button above, which is the path tier-2 actually reviews. #}
       <select name="disposition">
         <option value="resolved">Resolved</option>
-        <option value="escalated">Escalated</option>
       </select>
       <button type="submit">Close ticket</button>
     </form>

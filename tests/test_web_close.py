@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from markupsafe import escape
 
 from vitsc.faults.registry import get_fault
 from vitsc.web.app import create_app
@@ -33,7 +34,11 @@ def test_closing_a_solved_ticket_reports_success(client):
 def test_after_action_reveals_the_root_cause_only_after_closing(client):
     c, session = client
     ticket = session.queue.active()[0]
-    title = get_fault(ticket.fault_id).canonical_title
+    # The escaped form, both times: `root_cause` is autoescaped like any other
+    # template output, so a title containing an apostrophe ("a departed
+    # employee's access") never appears raw -- which would fail the positive
+    # check and, worse, pass the negative one vacuously.
+    title = str(escape(get_fault(ticket.fault_id).canonical_title))
     assert title not in c.get(f"/ticket/{ticket.id}").text
     solve(session, ticket)
     assert title in c.post(f"/ticket/{ticket.id}/close", data={"disposition": "resolved"}).text
@@ -77,3 +82,31 @@ def test_history_page_lists_closed_tickets(client):
     solve(session, ticket)
     c.post(f"/ticket/{ticket.id}/close", data={"disposition": "resolved"})
     assert str(ticket.id) in c.get("/history").text
+
+
+def test_the_close_form_offers_no_escalation_option(client):
+    """Phase 2a left two paths to `Disposition.ESCALATED` and they were not
+    equivalent: this one skipped `review_escalation`, so it never bounced a
+    fixable fault and produced a report with no `tier2_note` — the only place a
+    fault's `escalation_reason` is ever spoken. With four escalate-correct faults
+    that stopped being cosmetic, so escalation now has exactly one path.
+    """
+    c, session = client
+    ticket = session.queue.active()[0]
+    body = c.get(f"/ticket/{ticket.id}").text
+    assert 'value="escalated"' not in body
+    # The reviewed path is still offered.
+    assert f"/ticket/{ticket.id}/escalate" in body
+
+
+def test_closing_as_escalated_is_refused_even_by_a_crafted_request(client):
+    """A disposition the drill does not review is not one it accepts. Removing
+    the option from the template alone would leave the unreviewed path reachable
+    to anything that posts the form directly."""
+    c, session = client
+    ticket = session.queue.active()[0]
+    r = c.post(f"/ticket/{ticket.id}/close", data={"disposition": "escalated"})
+    assert r.status_code == 400
+    assert "escalate" in r.json()["detail"].lower()
+    assert session.queue.get(ticket.id).disposition is None
+    assert session.store.history() == []

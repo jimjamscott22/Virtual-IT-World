@@ -108,6 +108,12 @@ def forgive(standing: Baseline, before: Baseline, after: Baseline) -> Baseline:
     def dropped(name: str) -> set[str]:
         return before.group_members.get(name, set()) - after.group_members.get(name, set())
 
+    # Every field of `Baseline` must be named here. One left out is not a
+    # compile error and not a test failure either: it silently defaults to empty
+    # on every arrival, so the invariant it backs never fires in a real session
+    # while its own unit tests go on passing. That is exactly what happened when
+    # the mail pair was added, and it is what
+    # `test_forgiving_nothing_leaves_every_baseline_field_intact` now guards.
     return Baseline(
         enabled_users=standing.enabled_users
         - (before.enabled_users - after.enabled_users),
@@ -119,19 +125,37 @@ def forgive(standing: Baseline, before: Baseline, after: Baseline) -> Baseline:
         },
         # DNS is the one invariant a fault *adds* to rather than removes from.
         allowed_dns=standing.allowed_dns | (after.allowed_dns - before.allowed_dns),
+        mailboxes=standing.mailboxes - (before.mailboxes - after.mailboxes),
+        # `mail.mailbox_full` pushes its victim over quota, so that mailbox drops
+        # out of the within-quota set when the fault lands. Forgiven, like every
+        # other change a fault's own `apply()` makes.
+        mailboxes_within_quota=standing.mailboxes_within_quota
+        - (before.mailboxes_within_quota - after.mailboxes_within_quota),
     )
 
 
 def reporter_sam(world: World, at: Placement) -> str | None:
     """Who phones this in, for a fault that does not declare its own reporters.
 
-    User placements name the person directly. Machine placements resolve
-    through `assigned_to`, and printer placements carry a `hostname/printer`
-    key, so both reduce to the same machine lookup.
+    User placements name the person directly, and machine placements resolve
+    through `assigned_to`. Printer placements come in two shapes: a
+    `hostname/printer` key names one workstation's installation and reduces to
+    the same machine lookup, while a bare printer name names the device itself,
+    where the person who calls is the first of the people who use it. Phase 2b's
+    device-level printing faults are the first to use the second shape, and
+    without this the list came back empty and nobody got the ticket.
     """
     if at.kind == "user":
         return at.key
-    machine = world.machines.get(at.key.split("/")[0])
+    host, _, printer = at.key.partition("/")
+    if at.kind == "printer" and not printer:
+        users = sorted(
+            m.assigned_to
+            for m in world.machines.values()
+            if m.assigned_to is not None and at.key in m.installed_printers
+        )
+        return users[0] if users else None
+    machine = world.machines.get(host)
     return machine.assigned_to if machine else None
 
 

@@ -6,26 +6,53 @@ from vitsc.distractors.registry import get_distractor
 from vitsc.faults.base import bind
 from vitsc.faults.registry import all_faults, get_fault
 from vitsc.persona.client import scrub
+from vitsc.session.tier2 import _evidence_targets
 from vitsc.tools.registry import all_tools
 from vitsc.web.app import create_app
 from vitsc.web.deps import AppSession
 
-# fault id -> (tool, command) for the HTTP call that performs its canonical
-# fix. Each DispatchTool decides its own command set (vitsc/tools/*.py), so
-# this table has to name the exact command per fault -- there's no generic
-# way to derive it from the Action alone.
+# fault id -> the ordered (tool, command) steps that perform its canonical fix
+# through HTTP. A list rather than a single pair: several Phase 2b repairs take
+# two steps, because the world genuinely needs two changes — a disabled service
+# has to be enabled *and* started, and a machine holding a static address has to
+# be put back on DHCP *and* given a lease. Each DispatchTool decides its own
+# command set (vitsc/tools/*.py), so this table has to name the exact commands
+# per fault -- there's no generic way to derive them from the Actions alone.
 HTTP_FIX = {
-    "ad.account_locked": ("ad", "unlock"),
-    "ad.password_expired": ("ad", "reset-password"),
-    "ad.cached_credentials_expired": ("ps", "Restart-Service"),
-    "share.group_membership_removed": ("ad", "add-member"),
-    "net.static_dns_misconfig": ("net", "set-dns"),
-    "net.no_dhcp_lease": ("net", "renew"),
-    "print.spooler_stopped": ("print", "restart-spooler"),
-    "print.wrong_driver": ("print", "reinstall-driver"),
-    "print.server_spooler_stopped": ("print", "restart-spooler"),
-    "endpoint.disk_full": ("remote", "clear-disk"),
-    "mail.mailbox_full": ("mail", "set-quota"),
+    "ad.account_locked": [("ad", "unlock")],
+    "ad.password_expired": [("ad", "reset-password")],
+    # Landed on `main` in parallel with this branch; kept as its author wrote it,
+    # converted to the step-list shape.
+    "ad.cached_credentials_expired": [("ps", "Restart-Service")],
+    "share.group_membership_removed": [("ad", "add-member")],
+    "net.static_dns_misconfig": [("net", "set-dns")],
+    "net.no_dhcp_lease": [("net", "renew")],
+    "print.spooler_stopped": [("print", "restart-spooler")],
+    "print.wrong_driver": [("print", "reinstall-driver")],
+    "print.server_spooler_stopped": [("print", "restart-spooler")],
+    "endpoint.disk_full": [("remote", "clear-disk")],
+    "mail.mailbox_full": [("mail", "set-quota")],
+    # Phase 2b.
+    "ad.password_change_not_cached": [("remote", "refresh-credentials")],
+    "ad.nested_group_membership": [("ad", "nest-group")],
+    "net.wrong_subnet_mask": [("net", "renew")],
+    "net.gateway_misconfigured": [("net", "renew")],
+    "net.stale_proxy": [("net", "clear-proxy")],
+    "net.duplicate_static_ip": [("net", "enable-dhcp"), ("net", "renew")],
+    "print.printer_offline": [("print", "reset-printer")],
+    "print.stuck_job": [("print", "clear-queue")],
+    "print.driver_after_model_swap": [("print", "push-driver")],
+    "endpoint.corrupt_profile": [("remote", "rebuild-profile")],
+    "endpoint.service_disabled": [
+        ("remote", "enable-service"),
+        ("remote", "restart-service"),
+    ],
+    "endpoint.time_skew": [("remote", "resync-time")],
+    "endpoint.runaway_process": [("remote", "kill-process")],
+    "mail.transport_stalled": [("mail", "restart-transport")],
+    "mail.stale_delegate": [("mail", "remove-delegate")],
+    "mail.autodiscover_broken": [("mail", "set-autodiscover")],
+    "mail.ownerless_distribution_list": [("mail", "set-list-owner")],
 }
 
 # Each DispatchTool also decides its own field name for "the thing this
@@ -43,22 +70,65 @@ TARGET_FIELD = {
     "reinstall-driver": "printer",
     "clear-disk": "host",
     "set-quota": "sam",
+    "refresh-credentials": "host",
+    "nest-group": "group",
+    "clear-proxy": "from",
+    "enable-dhcp": "from",
+    "reset-printer": "printer",
+    "clear-queue": "printer",
+    "push-driver": "printer",
+    "rebuild-profile": "host",
+    "enable-service": "host",
+    "restart-service": "host",
+    "resync-time": "host",
+    "kill-process": "host",
+    "restart-transport": "host",
+    "remove-delegate": "sam",
+    "set-autodiscover": "host",
+    "set-list-owner": "list",
 }
+
+
+def escalate_via_http(client, ticket, fault, world):
+    """Hand a ticket to tier-2 through the reviewed flow.
+
+    The only way to reach `Disposition.ESCALATED` since the unreviewed dropdown
+    option was removed, and the right one: it is the path that produces a
+    `tier2_note`, which is the only place a fault's `escalation_reason` is ever
+    spoken. The note names a target from the fault's own declared evidence, so
+    tier-2 has something to accept.
+    """
+    targets = sorted(_evidence_targets(ticket, fault, world))
+    note = f"Checked {targets[0]} and the reading confirms this is not ours to fix."
+    r = client.post(f"/ticket/{ticket.id}/escalate", data={"note": note})
+    assert r.status_code == 200
+    return r
 
 
 def resolve_via_http(client, ticket, fault, world):
     """Submit the fault's canonical fix through POST /ticket/{id}/tool,
     exercising the real tool-name/command dispatch and args parsing instead
-    of mutating the environment directly."""
+    of mutating the environment directly.
+
+    Every action in the path, in order, not just the first: a repair that needs
+    two changes to the world is only proven through HTTP if both of them go
+    through HTTP.
+    """
     resolution = bind(fault.canonical_resolutions()[0], ticket.placement, world)
-    action = resolution.actions[0]
-    tool, command = HTTP_FIX[fault.id]
-    form_args = {TARGET_FIELD[command]: action.target, **action.args}
-    raw_args = " ".join(f"{k}={v}" for k, v in form_args.items())
-    r = client.post(f"/ticket/{ticket.id}/tool",
-                     data={"tool": tool, "command": command, "args": raw_args})
-    assert r.status_code == 200
-    return r
+    steps = HTTP_FIX[fault.id]
+    assert len(steps) == len(resolution.actions), (
+        f"{fault.id}: HTTP_FIX lists {len(steps)} step(s) for a "
+        f"{len(resolution.actions)}-action fix"
+    )
+    responses = []
+    for (tool, command), action in zip(steps, resolution.actions):
+        form_args = {TARGET_FIELD[command]: action.target, **action.args}
+        raw_args = " ".join(f"{k}={v}" for k, v in form_args.items())
+        r = client.post(f"/ticket/{ticket.id}/tool",
+                        data={"tool": tool, "command": command, "args": raw_args})
+        assert r.status_code == 200
+        responses.append(r)
+    return responses[-1]
 
 
 @pytest.mark.parametrize("seed", range(8))
@@ -75,7 +145,11 @@ def test_a_full_ticket_can_be_worked_through_http(tmp_path, seed):
     assert str(escape(ticket.report_text)) in client.get("/").text
     detail = client.get(f"/ticket/{ticket.id}").text
     fault = get_fault(ticket.fault_id)
+    # Both forms. A title containing an apostrophe ("the site's servers") never
+    # appears raw in rendered HTML, so a raw-only absence check would pass
+    # vacuously for exactly the titles most likely to leak.
     assert fault.canonical_title not in detail
+    assert str(escape(fault.canonical_title)) not in detail
     assert fault.id not in detail
 
     # Ask the user something before touching anything.
@@ -86,18 +160,19 @@ def test_a_full_ticket_can_be_worked_through_http(tmp_path, seed):
     client.post(f"/ticket/{ticket.id}/tool",
                 data={"tool": "ad", "command": "get-user", "args": f"sam={ticket.placement.key}"})
 
-    # Resolve through the same HTTP tool surface, or escalate when that is
-    # the correct disposition.
+    # Resolve through the same HTTP tool surface, or hand it to tier-2 through
+    # the reviewed escalate flow when that is the correct disposition.
     if fault.escalation_is_correct:
-        disposition = "escalated"
+        body = escalate_via_http(client, ticket, fault, session.env.world).text
     else:
-        disposition = "resolved"
         resolve_via_http(client, ticket, fault, session.env.world)
+        body = client.post(
+            f"/ticket/{ticket.id}/close", data={"disposition": "resolved"}
+        ).text
 
-    body = client.post(f"/ticket/{ticket.id}/close", data={"disposition": disposition}).text
-
-    # After-action reveals the cause, and the record persists.
-    assert fault.canonical_title in body
+    # After-action reveals the cause, and the record persists. `root_cause` is
+    # autoescaped like any other template output, so compare the escaped form.
+    assert str(escape(fault.canonical_title)) in body
     records = session.store.history()
     assert len(records) == 1
     assert records[0].correct is True, f"{fault.id} graded incorrect: {records[0].verdict}"
@@ -117,10 +192,24 @@ def test_every_resolvable_fault_has_an_http_fix_mapped():
 
 def test_every_http_fix_names_a_real_command_and_target_field():
     """The other half: an entry can exist and still be unpostable."""
-    for fault_id, (tool, command) in HTTP_FIX.items():
-        assert command in TARGET_FIELD, f"{fault_id}: {command} has no TARGET_FIELD"
-        registered = next(t for t in all_tools() if t.name == tool)
-        assert command in registered.commands(), f"{fault_id}: {tool} has no {command}"
+    for fault_id, steps in HTTP_FIX.items():
+        assert steps, f"{fault_id}: no steps listed"
+        for tool, command in steps:
+            assert command in TARGET_FIELD, f"{fault_id}: {command} has no TARGET_FIELD"
+            registered = next(t for t in all_tools() if t.name == tool)
+            assert command in registered.commands(), f"{fault_id}: {tool} has no {command}"
+
+
+def test_every_http_fix_has_a_step_for_every_action_of_the_canonical_path():
+    """The failure this guards is silent: a table entry listing one step for a
+    two-action repair posts half the fix, and the ticket then grades as closed
+    without the fault cleared -- which reads as a grading bug rather than a
+    stale table."""
+    for fault_id, steps in HTTP_FIX.items():
+        actions = get_fault(fault_id).canonical_resolutions()[0].actions
+        assert len(steps) == len(actions), (
+            f"{fault_id}: {len(steps)} step(s) listed for {len(actions)} action(s)"
+        )
 
 
 def test_every_fault_in_the_catalog_can_be_closed_correctly(tmp_path):
@@ -261,12 +350,10 @@ def test_a_seeded_distractor_does_not_block_any_ticket(tmp_path):
     fault = get_fault(ticket.fault_id)
 
     if fault.escalation_is_correct:
-        disposition = "escalated"
+        body = escalate_via_http(c, ticket, fault, session.env.world).text
     else:
-        disposition = "resolved"
         resolve_via_http(c, ticket, fault, session.env.world)
-
-    body = c.post(f"/ticket/{ticket.id}/close", data={"disposition": disposition}).text
+        body = c.post(f"/ticket/{ticket.id}/close", data={"disposition": "resolved"}).text
     record = session.store.history()[0]
     assert record.correct is True, f"{fault.id} graded incorrect: {record.verdict}"
     assert record.collateral_count == 0, (
@@ -275,3 +362,60 @@ def test_a_seeded_distractor_does_not_block_any_ticket(tmp_path):
     # Every seeded distractor is accounted for in the report.
     for distractor_id, _ in session.queue.distractors:
         assert get_distractor(distractor_id).note in body
+
+
+def test_deleting_a_mailbox_to_clear_a_quota_ticket_is_caught(tmp_path):
+    """The mail invariants, through the real surface.
+
+    `mail.mailbox_full` has two legitimate fixes and a third thing a technician
+    might try that looks like a fix and is not: deleting the mailbox clears every
+    symptom by throwing the mail away. That is what an invariant is for, and
+    before the mail pair landed nothing in the drill said a word about it.
+
+    Also the regression test for the crash that adding `mail.remove_mailbox`
+    created: `is_present()` read the mailbox through a helper that raised when it
+    was missing, so closing this ticket was a 500 rather than a bad grade.
+    """
+    session = AppSession.build(db_path=tmp_path / "wrongfix.sqlite3", seed=0)
+    client = TestClient(create_app(session))
+    fault = get_fault("mail.mailbox_full")
+    tickets = session.queue.open_for(fault, fault.placements(session.env.world)[0])
+    ticket = tickets[0]
+    sam = ticket.placement.key
+
+    r = client.post(f"/ticket/{ticket.id}/tool", data={
+        "tool": "mail", "command": "remove-mailbox", "args": f"sam={sam}"})
+    assert r.status_code == 200
+
+    body = client.post(f"/ticket/{ticket.id}/close", data={"disposition": "resolved"}).text
+    assert "Resolved correctly" not in body
+
+    record = session.store.history()[0]
+    assert record.correct is False
+    assert record.collateral_count == 1
+    assert f"mailbox for {sam} was deleted" in body
+
+
+def test_setting_a_quota_below_usage_is_caught_through_http(tmp_path):
+    """The other half of the pair, and the more tempting mistake: "enforce the
+    quota" reads like the right instinct and leaves the person exactly as unable
+    to send as the fault did."""
+    session = AppSession.build(db_path=tmp_path / "lowquota.sqlite3", seed=0)
+    client = TestClient(create_app(session))
+    fault = get_fault("mail.mailbox_full")
+    tickets = session.queue.open_for(fault, fault.placements(session.env.world)[0])
+    ticket = tickets[0]
+    victim = "d.okafor"
+    assert victim != ticket.placement.key
+
+    client.post(f"/ticket/{ticket.id}/tool", data={
+        "tool": "mail", "command": "set-quota", "args": f"sam={victim} quota_mb=1"})
+    resolve_via_http(client, ticket, fault, session.env.world)
+
+    body = client.post(f"/ticket/{ticket.id}/close", data={"disposition": "resolved"}).text
+    record = session.store.history()[0]
+    # The ticket's own fault *was* cleared; the damage is to somebody else.
+    assert fault.is_present(session.env.world, ticket.placement) is False
+    assert record.correct is False
+    assert record.collateral_count == 1
+    assert f"mailbox quota for {victim} was set below its current usage" in body

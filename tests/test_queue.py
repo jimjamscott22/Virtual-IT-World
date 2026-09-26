@@ -121,16 +121,24 @@ def test_no_duplicate_fault_and_placement_while_active(queue):
 
 
 def test_an_unfixed_fault_is_not_handed_out_again(queue):
-    """Closing a ticket without fixing it must not re-deal the same fault."""
-    ticket = queue.open_one()
-    ticket.close(Disposition.ESCALATED, at=NOW)
+    """Closing a ticket without fixing it must not re-deal the same fault.
+
+    Against the whole first *arrival*, not one ticket of it. `open_one()` hands
+    back the first ticket of whatever was dealt, so on a cascade the siblings
+    share that fault and placement legitimately — comparing against a single
+    ticket counted its own siblings as re-deals (convention 24).
+    """
+    arrival = queue.open_ticket()
+    for ticket in arrival:
+        ticket.close(Disposition.ESCALATED, at=NOW)
+    dealt = (arrival[0].fault_id, arrival[0].placement.key)
+    already = {t.id for t in arrival}
     for _ in range(MAX_ACTIVE):
         queue.open_ticket()
     repeats = [
         t
         for t in queue.tickets
-        if t.id != ticket.id
-        and (t.fault_id, t.placement.key) == (ticket.fault_id, ticket.placement.key)
+        if t.id not in already and (t.fault_id, t.placement.key) == dealt
     ]
     assert repeats == []
 
@@ -219,9 +227,47 @@ def test_difficulty_weights_cover_every_difficulty_a_fault_may_declare():
         assert fault.difficulty in DIFFICULTY_WEIGHTS
 
 
-def test_easier_faults_are_dealt_more_often():
-    """A real queue is mostly routine. The hard ticket has to stay rare enough
-    to be surprising, or 'probably a password' stops being the sane guess."""
+def test_an_easier_fault_is_dealt_more_often_than_a_harder_one():
+    """The mechanism `DIFFICULTY_WEIGHTS` exists for, stated per *fault*.
+
+    Deliberately not stated as a share of the draw per difficulty *level*: that
+    quantity is `weight x how many faults happen to sit at that level`, so it
+    moves whenever the catalog grows, and asserting an ordering on it would
+    make writing a fourth difficulty-3 fault fail a test about the scheduler.
+    What the scheduler actually promises is about one fault against another,
+    and it holds at any catalog size.
+    """
+    from collections import Counter
+    from vitsc.session.queue import choose_fault_and_placement
+    candidates, _ = _candidate_pairs()
+    rng = Random(0)
+    drawn = Counter(
+        choose_fault_and_placement(candidates, rng)[0].id for _ in range(40000)
+    )
+    # One entry per fault, not per (fault, placement) pair: a fault with twenty
+    # placements is still one fault, which is the whole point of the scheduler.
+    per_fault: dict[int, list[int]] = {}
+    for fault in {f.id: f for f, _placement in candidates}.values():
+        per_fault.setdefault(fault.difficulty, []).append(drawn[fault.id])
+    means = {d: sum(counts) / len(counts) for d, counts in sorted(per_fault.items())}
+    levels = sorted(means)
+    for easier, harder in zip(levels, levels[1:]):
+        assert means[easier] > means[harder], (
+            f"a difficulty-{easier} fault is not dealt more often than a "
+            f"difficulty-{harder} one: {means}"
+        )
+
+
+def test_the_catalog_deals_mostly_routine_tickets():
+    """The outcome the difficulty choices are meant to produce.
+
+    A real queue is mostly routine, and the hard ticket has to stay rare enough
+    to be surprising, or 'probably a password' stops being the sane first
+    guess. This is a claim about the *catalog's* composition rather than about
+    the scheduler, so it is the test that a badly-chosen difficulty on a new
+    fault should fail -- see the 2b plan's "difficulty is a frequency
+    decision".
+    """
     from collections import Counter
     from vitsc.session.queue import choose_fault_and_placement
     candidates, _ = _candidate_pairs()
@@ -230,9 +276,11 @@ def test_easier_faults_are_dealt_more_often():
         choose_fault_and_placement(candidates, rng)[0].difficulty for _ in range(20000)
     )
     total = sum(seen.values())
-    assert seen[1] / total > seen[3] / total > seen[4] / total
+    routine = (seen[1] + seen[2]) / total
+    assert routine > 0.55, f"only {routine:.0%} of tickets are routine"
     # Difficulty 4 is the rarest thing in the catalog, by a clear margin.
     assert seen[4] / total < 0.15
+    assert seen[5] / total < 0.15
 
 
 def test_placement_count_does_not_decide_how_often_a_fault_comes_up():
@@ -285,3 +333,30 @@ def test_the_choice_is_reproducible_for_a_seed():
     first = [choose_fault_and_placement(candidates, Random(4)) for _ in range(5)]
     again = [choose_fault_and_placement(candidates, Random(4)) for _ in range(5)]
     assert [(f.id, p.key) for f, p in first] == [(f.id, p.key) for f, p in again]
+
+
+def test_forgiving_nothing_leaves_every_baseline_field_intact():
+    """Structural guard on `forgive()`.
+
+    It rebuilds a `Baseline` by naming each field, so a field added to `Baseline`
+    and forgotten here silently defaults to empty on every arrival: the invariant
+    it backs never fires in a real session, while its own unit tests keep
+    passing. That is how the two mail invariants shipped inert for one commit.
+
+    With `before == after` — no fault applied — forgiving must be the identity,
+    so any dropped field shows up as the difference between a populated standing
+    baseline and what comes back.
+    """
+    from vitsc.session.queue import forgive
+    from vitsc.world.invariants import capture_baseline
+
+    world = load_world()
+    standing = capture_baseline(world)
+    # Every field has to be non-empty, or "dropped" and "empty anyway" look
+    # alike. Iterated through `model_dump()` rather than `model_fields` because
+    # the latter is a pydantic descriptor pylint cannot see is a dict.
+    for name, value in standing.model_dump().items():
+        assert value, f"capture_baseline leaves {name} empty; this test cannot see it"
+
+    unchanged = capture_baseline(world)
+    assert forgive(standing, unchanged, unchanged) == standing

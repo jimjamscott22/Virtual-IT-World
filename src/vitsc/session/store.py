@@ -6,6 +6,7 @@ serialising a whole `World` per request.
 """
 
 import sqlite3
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -33,9 +34,15 @@ CREATE TABLE IF NOT EXISTS closed_tickets (
     verdict          TEXT    NOT NULL,
     closed_at        TEXT    NOT NULL,
     cascade_id       TEXT,
+    session_id       TEXT,
     rowid_key        INTEGER PRIMARY KEY AUTOINCREMENT
 );
 """
+
+# Columns added after the table first shipped. `CREATE TABLE IF NOT EXISTS`
+# never alters an existing table, so each one needs its own migration step, and
+# a database on disk outlives any single release.
+ADDED_COLUMNS = {"cascade_id": "TEXT", "session_id": "TEXT"}
 
 
 class ClosedRecord(BaseModel):
@@ -66,8 +73,22 @@ class DomainStat(BaseModel):
 
 
 class Store:
-    def __init__(self, path: Path | str) -> None:
+    """Closed tickets on disk, scoped to the run that wrote them.
+
+    The database outlives the process: `__main__.py` keeps one at
+    `~/.vitsc/sessions.sqlite3`, so every shift a player ever works lands in the
+    same table. Reads are therefore scoped to this `Store`'s own `session_id` by
+    default, because the questions the app asks ("how did *this* shift go") are
+    all about one run — the simulated clock restarts at 09:00 every session, so
+    no timestamp can separate them and nothing else could.
+
+    Pass `all_sessions=True` to read across runs. Nothing does yet; a
+    career-to-date view would.
+    """
+
+    def __init__(self, path: Path | str, session_id: str | None = None) -> None:
         self.path = Path(path)
+        self.session_id = session_id or uuid.uuid4().hex
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path)
@@ -77,12 +98,13 @@ class Store:
     def init(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA)
-            # A database created before cascades existed lacks this column —
-            # `CREATE TABLE IF NOT EXISTS` above never adds it retroactively,
-            # so an existing on-disk database needs its own migration step.
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(closed_tickets)")}
-            if "cascade_id" not in columns:
-                conn.execute("ALTER TABLE closed_tickets ADD COLUMN cascade_id TEXT")
+            for name, sql_type in ADDED_COLUMNS.items():
+                if name not in columns:
+                    # Only ever our own literals from ADDED_COLUMNS, never input.
+                    conn.execute(
+                        f"ALTER TABLE closed_tickets ADD COLUMN {name} {sql_type}"
+                    )
 
     def save_closed(self, ticket: Ticket, grade: Grade, report: AfterAction) -> None:
         domain = get_fault(ticket.fault_id).domain
@@ -91,21 +113,24 @@ class Store:
                 """INSERT INTO closed_tickets (
                     ticket_id, fault_id, domain, placement_key, disposition, correct,
                     within_sla, elapsed_minutes, tool_calls_made, tool_calls_min,
-                    collateral_count, root_cause, verdict, closed_at, cascade_id
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    collateral_count, root_cause, verdict, closed_at, cascade_id,
+                    session_id
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     ticket.id, ticket.fault_id, domain, ticket.placement.key,
                     ticket.disposition.value, int(grade.correct), int(grade.within_sla),
                     grade.elapsed_minutes, grade.tool_calls_made, grade.tool_calls_minimum,
                     len(grade.collateral), report.root_cause, report.verdict,
-                    ticket.closed_at.isoformat(), ticket.cascade_id,
+                    ticket.closed_at.isoformat(), ticket.cascade_id, self.session_id,
                 ),
             )
 
-    def history(self, limit: int = 50) -> list[ClosedRecord]:
+    def history(self, limit: int = 50, all_sessions: bool = False) -> list[ClosedRecord]:
+        where, params = self._scope(all_sessions)
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM closed_tickets ORDER BY rowid_key DESC LIMIT ?", (limit,)
+                f"SELECT * FROM closed_tickets{where} ORDER BY rowid_key DESC LIMIT ?",
+                (*params, limit),
             ).fetchall()
         return [
             ClosedRecord(
@@ -120,11 +145,24 @@ class Store:
             for r in rows
         ]
 
-    def domain_stats(self) -> dict[str, DomainStat]:
+    def _scope(self, all_sessions: bool) -> tuple[str, tuple[str, ...]]:
+        """The WHERE clause that keeps one run's rows apart from another's.
+
+        Rows written before the column existed have a NULL `session_id` and so
+        match no current session, which is the right answer: they are somebody
+        else's shift.
+        """
+        if all_sessions:
+            return "", ()
+        return " WHERE session_id = ?", (self.session_id,)
+
+    def domain_stats(self, all_sessions: bool = False) -> dict[str, DomainStat]:
+        where, params = self._scope(all_sessions)
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT domain, COUNT(*) AS total, SUM(correct) AS correct "
-                "FROM closed_tickets GROUP BY domain"
+                f"FROM closed_tickets{where} GROUP BY domain",
+                params,
             ).fetchall()
         return {
             r["domain"]: DomainStat(

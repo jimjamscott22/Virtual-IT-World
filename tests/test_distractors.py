@@ -105,8 +105,23 @@ def test_distractor_does_not_break_a_canonical_fix(distractor, at):
             env.restore(snapshot)
 
 
-def test_catalog_has_at_least_five():
-    assert len(all_distractors()) >= 5
+def test_the_noise_floor_scales_with_the_catalog():
+    """A fixed five was fine against thirteen faults and is not against
+    thirty-one: the same handful turning up every session stops being noise and
+    becomes a tell a technician learns to skip. Stated as a ratio so that adding
+    faults without adding noise fails here rather than quietly degrading the
+    drill."""
+    assert len(all_distractors()) >= max(5, len(all_faults()) // 4)
+
+
+def test_every_distractor_has_somewhere_to_land():
+    """A distractor with no placements is silently seeded nowhere, and its
+    conformance cases vanish from this file rather than failing. That happened to
+    `printer.offline_unused` when the estate grew and every printer became one
+    somebody had installed."""
+    world = load_world()
+    for distractor in all_distractors():
+        assert distractor.placements(world), f"{distractor.id} has no placements"
 
 
 def test_ids_are_unique_and_namespaced():

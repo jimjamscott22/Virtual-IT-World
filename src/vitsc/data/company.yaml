@@ -54,6 +54,16 @@ servers:
 mail:
   server: MER-MB-01
   quota_mb: 51200
+  autodiscover_host: MER-MB-01
+
+# `members` is either the literal `all` or the name of a group above, resolved
+# in world/seed.py — a list is a membership, and repeating one here would just
+# be a second place for it to go stale.
+distribution_lists:
+  - {name: All-Staff,        address: all-staff@meridian.local,        owner_sam: j.abiodun,   members: all}
+  - {name: Dispatch,         address: dispatch@meridian.local,         owner_sam: s.whitfield, members: OPS-Share-RW}
+  - {name: Sales-Team,       address: sales-team@meridian.local,       owner_sam: g.pillai,    members: SALES-Share-RW}
+  - {name: Warehouse-Floor,  address: warehouse-floor@meridian.local,  owner_sam: b.ferreira,  members: WH-Share-RW}
 
 workstations:
   - {hostname: MER-WS-001, assigned_to: m.alvarez,   ip: 10.20.10.41, printers: [PRT-ACC-01]}
@@ -76,6 +86,11 @@ printers:
   - {name: PRT-OPS-01, host: MER-PRT-01, model: "HP LaserJet M507", correct_driver: "HP LaserJet M507 PCL-6"}
   - {name: PRT-WH-01,  host: MER-PRT-01, model: "Zebra ZT411",      correct_driver: "Zebra ZT411 ZPL"}
   - {name: PRT-SALES-01, host: MER-PRT-01, model: "HP LaserJet M507", correct_driver: "HP LaserJet M507 PCL-6"}
+  # A spare in the dispatch office that nobody has installed. It exists so the
+  # `printer.offline_unused` distractor has somewhere to land: every other
+  # printer is installed on at least one workstation, which had quietly left
+  # that distractor with no placements at all once the estate grew.
+  - {name: PRT-OPS-02, host: MER-PRT-01, model: "HP LaserJet M507", correct_driver: "HP LaserJet M507 PCL-6"}
 
 shares:
   - {unc: "\\\\MER-FS-01\\Accounting", host: MER-FS-01, required_group: ACC-Share-RW,   drive_letter: "S:"}

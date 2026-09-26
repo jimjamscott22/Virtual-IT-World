@@ -1,186 +1,197 @@
 # Phase 2b handoff
 
-Written after Phase 2b's groundwork PR (#11) and its Task 1 (`8cf1804`,
-`ad.cached_credentials_expired`), both merged to `main`. Records *situational*
-state (what's landed, what's next, what's open) — architecture lives in
-`CLAUDE.md`/`AGENTS.md`, and per-task detail lives in
-`docs/superpowers/plans/2026-08-14-phase-2b-catalog.md`. Delete or rewrite this
-file once Phase 2b's Definition of Done is met.
+Written at the end of the session that landed Phase 2b's catalog: the eighteen
+faults that took the drill from thirteen to thirty-one, plus the KB, distractor,
+invariant and escalation work the plan listed alongside them.
+
+Delete this file when Phase 2b is closed out. It records *situational* state —
+branch, PR, what is half-done, what is worth knowing once and not twice.
+Architecture lives in `CLAUDE.md`, which is current.
 
 ## Where things stand
 
 | | |
 | --- | --- |
-| Branch | `main` |
-| Latest commit | `8cf1804` — "feat(faults): add identity domain's cached-credentials fault (2b Task 1)" |
-| Tests | 942 passed, 0 failed (verified live: `uv run pytest`) |
-| Lint | 10.00/10 on `src` (verified live: `uv run pylint src`) |
-| Faults registered | 14 — identity 5, network 2, printing 3, endpoint 2, mail 2 |
+| Branch | `claude/game-dev-progress-review-i56yyx` |
+| Base | `main` at `8a8d750`, merged in — see the collision section |
+| Tests | 1662 passing, 0 xfailed |
+| Lint | 10.00/10 on `src` and on `tests` |
+| Catalog | 32 faults — identity 8, network 6, printing 6, endpoint 6, mail 6 |
 
-Phase 2a (Tasks 1–17) is fully complete and merged. Phase 2b's groundwork
-(estate growth, fixed shift, difficulty-driven scheduling) is done, and its
-Task 1 is the first fault added under that groundwork.
+## What landed
 
-## What landed most recently
+One commit of machinery, five commits of faults, then the supporting work. Read
+the commit messages: each one states what it changed and, where a test had to
+change shape, why the test was wrong rather than the code.
 
-**Phase 2b groundwork** (`0a9d387`, PR [#11](https://github.com/jimjamscott22/Virtual-IT-World/pull/11)) settled the three questions the 2b plan
-required before any fault-adding task:
+**The machinery, first and on its own** (`9858414`). Most 2b faults could not be
+expressed against the Phase 2a world. `ServiceState.DISABLED`, nested groups,
+`Machine.proxy_server` / `last_domain_sync` / `clock_offset_minutes` /
+`processes`, `Printer.jobs`, `Mailbox.delegates`,
+`MailSystem.autodiscover_host` / `distribution_lists`, `Network.netmask`, six
+new reads, sixteen new actions, and the routing model in `_reachable()`.
 
-- **The estate grew to 20 users / 10 workstations** (from 12/6), append-only
-  so every existing row stayed byte-identical. Half the org now shares a
-  terminal, which keeps a machine-placed fault from being a user-placed fault
-  under another name.
-- **A fixed eight-hour simulated shift** (`session/shift.py`, `/shift`):
-  arrivals stop at 17:00, open tickets stay workable, and the end-of-shift
-  report sums the store's own rows (except `unresolved`, which has to come
-  from the live queue).
-- **Difficulty now drives how often a fault is dealt**, not placement count.
-  `choose_fault_and_placement()` picks the fault first (weighted 5/4/3/2/1 by
-  `difficulty`), then a placement uniformly. Before this change the catalog's
-  only cascade (one placement) was drawn 20x less often than a mail fault
-  (twenty placements) for no reason anyone chose.
+**The faults**, one commit per domain:
 
-**Phase 2b Task 1** (`8cf1804`) — `ad.cached_credentials_expired`:
+- identity `4113425` — `ad.password_change_not_cached`,
+  `ad.nested_group_membership`, `ad.upn_mismatch` (the fourth escalate-correct
+  reason: nobody in IT knows the right answer).
+- network `9107f88` — `net.wrong_subnet_mask`, `net.gateway_misconfigured`,
+  `net.stale_proxy`, `net.duplicate_static_ip` (cascade). Four distinct
+  observable signatures; the table is in that commit message and is the thing to
+  preserve if `_reachable()` is ever touched.
+- printing `29625df` — `print.printer_offline`, `print.stuck_job` (cascade),
+  `print.driver_after_model_swap` (cascade).
+- endpoint `666bc63` — `endpoint.corrupt_profile`,
+  `endpoint.service_disabled`, `endpoint.time_skew`,
+  `endpoint.runaway_process`.
+- mail `d96969d` — `mail.transport_stalled` (cascade), `mail.stale_delegate`,
+  `mail.autodiscover_broken`, `mail.ownerless_distribution_list`.
 
-- Models a workstation whose cached domain sign-in has gone stale after an
-  extended absence from the network: the user reaches their desktop fine,
-  but mapped drives, printers, and mail all fail because the machine's live
-  channel to the domain controller (`"Netlogon"` in `machine.services`) is
-  down. Gated and cleared exactly like `print.spooler_stopped` — a
-  `ServiceState.STOPPED` entry, cleared by `machine.restart_service`.
-- Deliberately the cheapest possible 2b task: no new query/action kind, no
-  new `World` field, no new tool surface — it reuses `machine.services` /
-  `machine.restart_service`, already reachable via `remote services`,
-  `ps Get-Service`, `ps Restart-Service`.
-- The differential against the other four identity faults: `ad get-user` on
-  the affected sam comes back completely clean (not locked, not expired, not
-  disabled), because the account itself is never touched. The technician has
-  to notice the account checks out and look at the machine instead.
-- Adds `src/vitsc/data/kb/identity-signed-in-but-cut-off.md` (the existing
-  identity KB article is about not being able to sign in at all, which
-  doesn't fit this symptom).
-- `tests/test_catalog.py` (`test_v1_catalog_is_complete`) and
-  `tests/test_end_to_end.py` (`HTTP_FIX`/`TARGET_FIELD`) updated in the same
-  commit, per conventions 21–22 below.
+**The rest of the plan's list**: KB grown to fourteen articles with no orphans
+either way and distractors to eleven (`1cacf73`); the mail invariants and the
+single escalation path (`86dc208`); the store's session scoping (`dbfb405`).
 
-## What's next
+## Task 1 was built twice — read this before touching `identity.py`
 
-Continuing down `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md`'s
-task list toward its **30+ fault target** (currently 14; roughly 16 more
-needed, spread so no domain stays below five). The plan's domain table names
-candidates per domain — network's duplicate-static-IP cascade and printing's
-stuck-queue fault (which needs a new print-queue-clear action kind) are
-flagged as the two that need new plumbing rather than reusing existing
-query/action kinds, so they're more expensive tasks than Task 1 was.
+Convention 23 again, for the second time in this project's life (Phase 2a's Task
+15 was the first). While this branch was working the whole of 2b,
+**`ad.cached_credentials_expired` landed on `main` independently** as 2b's Task 1.
+Two sessions, same plan line, two different faults.
 
-Before starting the next task, re-verify `main`'s state rather than trusting
-this file — a past session (see conventions 6 and 23 below) already hit two
-sessions being handed the same task, and a change to `SessionQueue`'s RNG
-consumption can silently shift which fault a fixed `seed=N` deals across the
-whole suite.
+They were **both kept**, because they are not the same fault:
+
+| | `ad.cached_credentials_expired` (from `main`) | `ad.password_change_not_cached` (this branch) |
+| --- | --- | --- |
+| mechanism | `Netlogon` stopped — the machine's channel to the domain is down | the cached credential is older than the password |
+| symptom | signed in fine, but drives, printers and mail all fail | the *new* password is rejected here, the old one works |
+| the tell | `ad get-user` reads completely clean | `LastDomainSync` predates `PasswordLastSet` |
+| fix | restart `Netlogon` | `remote refresh-credentials` |
+
+The one on `main` is kept exactly as its author wrote it, including its
+`HTTP_FIX` entry (converted to the step-list shape). **This branch's fault was
+renamed** from `ad.cached_credentials_stale` to `ad.password_change_not_cached`:
+two ids both reading `cached_credentials_*` are indistinguishable in an
+after-action, and the unmerged one is the one to move. Naming it for its
+mechanism also makes the pair legible — one is about the channel, the other about
+what the channel last carried.
+
+Nothing else collided mechanically. Their fault gates on a service state and
+mine on two timestamps, so neither can flip the other, and the merge needed no
+compromise on either.
+
+## Four bugs found by driving the app, not by the suite
+
+Convention 5 earned its place again. None of these was caught by pytest, and
+three of them were in code this session had just written.
+
+1. **`forgive()` silently dropped both new `Baseline` fields.** It rebuilds the
+   model naming each field, so a field added and forgotten there defaults to
+   empty on every arrival: the invariant never fires in a real session while its
+   own unit tests pass. Guarded now by
+   `test_forgiving_nothing_leaves_every_baseline_field_intact`. **This is the
+   single most important thing in this file** — it generalises to any future
+   `Baseline` field.
+2. **`mail.remove_mailbox` made an unreachable raise reachable**, turning a bad
+   grade into a 500. A missing mailbox now reads as the fault still present.
+3. **The shift summary counted previous shifts.** `~/.vitsc/sessions.sqlite3`
+   outlives the process, so four tickets closed reported seven. No timestamp
+   could have separated the runs — the simulated clock restarts at 09:00 every
+   session — so rows carry a `session_id`.
+4. **A raw-substring assertion against rendered HTML passed vacuously** for any
+   fault title containing an apostrophe, in two separate test files. The
+   negative half was the dangerous one: it was a *leak* check.
 
 ## Phase 2b Definition of Done
 
-Copied from the plan, not yet checked item by item this session:
+Checked item by item against the plan's own list.
 
-- [ ] 30+ faults registered, conforming across every placement, in all five
-      domains, none below five. **Currently 14** (identity 5, network 2,
-      printing 3, endpoint 2, mail 2).
-- [ ] At least two cascade faults in different domains, and at least four
-      escalate-correct faults, no two escalate-correct for the same reason.
-      **Currently:** one cascade (`print.server_spooler_stopped`), three
-      escalate-correct faults.
-- [ ] Every fault links at least one KB article; every article linked by at
-      least one fault (no orphans either direction).
-- [ ] Distractor count scaled to the catalog (currently 5, sized for the old
-      13–14-fault catalog).
-- [ ] Mail invariants land, with a fault that trips them when fixed wrongly.
-      **Not started** — Task 12 (Phase 2a) deliberately deferred this.
-- [ ] The escalation-disposition inconsistency (see Open threads) resolved
-      one way or the other, deliberately.
-- [ ] Every fault's `difficulty` chosen as a frequency decision, not just a
-      hardness one.
-- [ ] A full eight-hour shift workable end to end; `/shift` reads correctly
-      for a good shift and a bad one.
-- [ ] `uv run pytest` green with nothing on localhost; `uv run pylint src`
-      and `tests` at 10.00/10. **✅ true right now** (942 passed, 10.00/10).
-- [ ] A full ticket worked in the browser in all five domains, and a player
-      working twenty consecutive tickets cannot predict the cause from the
-      opening line.
+| | Item | Status |
+|---|---|---|
+| 1 | 30+ faults, conforming across every placement, all five domains, none below five | ✅ 32, none below six |
+| 2 | Two cascades in different domains; four escalate-correct, no two for the same reason | ✅ five cascades in three domains; four reasons — authorisation, hardware, acting-destroys-evidence, nobody-knows-the-value |
+| 3 | Every fault links an article; every article is linked | ✅ proved by `test_no_orphans_in_either_direction` |
+| 4 | Distractor count scaled to the catalog, all passing the harness | ✅ eleven, ratio-guarded |
+| 5 | Mail invariants land, with a fault that trips them when fixed wrongly | ✅ both trippable through HTTP on `mail.mailbox_full` |
+| 6 | The escalation-disposition inconsistency resolved deliberately | ✅ one reviewed path; the dropdown option is gone and the route refuses it |
+| 7 | Every fault's `difficulty` chosen as a frequency decision | ✅ 5/13/10/3 across 1–4; ~68% of dealt tickets are routine, asserted |
+| 8 | A full eight-hour shift workable end to end; `/shift` reads correctly for a good shift and a bad one | ✅ driven on a real server; a deliberately mixed shift reads "2 of 3 closed correctly" |
+| 9 | `uv run pytest` green with nothing on localhost; pylint 10.00/10 on both targets | ✅ — and read pylint's *exit code*, not its score line; see convention 32 |
+| 10 | A full ticket workable in the browser in all five domains, and twenty consecutive tickets unpredictable | ✅ automated for all 32 (`test_every_fault_in_the_catalog_can_be_closed_correctly`); a cascade and a `net.stale_proxy` ticket also worked by hand on a real server |
+| — | LM Studio: suite green with it running, and `VITSC_PERSONA=lmstudio` roleplaying every ticket | ⬜ **inherited from Phase 2a and still unverified.** No sandbox has had network to a local LM Studio. `docs/verifying-lmstudio.md` is the manual procedure; a green pipeline does not stand in for it |
 
-## Still-open items carried over from Phase 2a
+## Open threads
 
-These were open at the end of Phase 2a and remain open — nothing in Phase 2b
-so far has touched them:
-
-- **The LM Studio path is still unverified.** No environment used so far has
-  had network access to a local LM Studio instance.
-  `docs/verifying-lmstudio.md` is the manual procedure; a green pipeline does
-  **not** stand in for it.
-- **The deleted design spec.** `docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md`
-  and the Phase 1 plan were deleted from the tree in commit `dbcd2bb`
-  (deliberate, titled, by the repo owner). Recoverable with:
-  ```bash
-  git show dbcd2bb^:docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md
-  git show dbcd2bb^:docs/superpowers/plans/2026-08-07-phase-1-drill.md
-  ```
-  If it stays deleted, `CLAUDE.md`/`AGENTS.md` remain the sole architectural
-  record, and the 2a plan's own cross-references to the spec (lines 11–12,
-  and Task 17's file list) stay permanently dangling.
-- **`remote clear-disk` with no `gb` silently succeeds and frees nothing.**
-  `_do_machine_clear_disk` reads `float(a.args.get("gb", "0"))`, logging a
-  mutation that did nothing. `_do_mail_set_quota` handles the analogous case
-  the opposite way (rejects outright). Fix: treat a missing `gb` as a
-  rejection, matching `set_quota`.
-- **Two ways still reach `Disposition.ESCALATED`**: the reviewed
-  `/ticket/{id}/escalate` flow, and the unreviewed "Escalated" option still
-  sitting in the close-ticket dropdown, which skips `review_escalation`
-  entirely and produces an after-action with no `tier2_note`. Whether the
-  dropdown option should be removed is a real design question, called out in
-  the Phase 2b DoD above but not yet decided.
-- **No CSS for tier-2/KB/cascade elements** (`.chat-tier2`, `.tier2-bounce`,
-  `.tier2-outcome`, `.tier2-note`, `.escalate-form`, `.ticket-actions`,
-  `.kb-suggestions`, `.kb-page`, `.kb-article`, `.kb-results`, `.kb-search`).
-  Matches existing unstyled precedent (`.warning`, `.ticket-cascade`,
-  `.cascade-note`).
-- **`_kb.html` has no link back to it from `layout.html`/`index.html`.**
-  Reachable only via `/kb` directly or the after-action's links.
-- **`mail.mailbox`'s size fields render as a plain `"51200.0 MB"`** rather
-  than real Exchange's mixed-unit style. Consistent with how this codebase
-  already simplifies other cmdlet output.
-- **No mail invariant exists** — also listed in the Phase 2b DoD above.
+- **The LM Studio path has never run.** The one item above that cannot be ticked
+  from here. Everything else in Phase 2a's and 2b's Definitions of Done is done.
+- **The design spec is still deleted** (commit `dbcd2bb`), so `CLAUDE.md` remains
+  the sole architectural record and the 2a plan's cross-references to the spec
+  (its lines 11–12, Task 17's file list) still dangle. Recover with
+  `git show dbcd2bb^:docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md`.
+  If it comes back, §6's catalog table needs to go from ten faults to
+  thirty-one and the `Fault` protocol listing needs the 2a members.
+- **`is_present()` predicates overlap in three places, deliberately.**
+  `print.wrong_driver` and `print.driver_after_model_swap` both mean "a
+  workstation has the wrong driver for this printer";
+  `share.group_membership_removed` and `ad.nested_group_membership` both mean
+  "this person is not effectively in the group the share requires". That is
+  honest — the gate is world state, and the world really is broken both ways —
+  and the scheduler skips a fault that is already present, so no ticket is dealt
+  twice for one cause. But it means a *second* fault can read as present while
+  the first is active, and if a future feature ever asks "which fault is this
+  world in", it will need a tie-break that does not exist today.
+- **A third cached-credentials-adjacent fault would now be one too many.** The
+  pair described in the collision section above is legible because the two
+  mechanisms are genuinely different; a third fault in that area should either
+  replace one of them or pick a different part of the estate.
+- **`mail.transport_stalled` and `mail.autodiscover_broken` share a placement**
+  (`MER-MB-01`). Fine today; worth knowing if placement-holding ever becomes
+  keyed on the placement alone rather than on fault + placement.
+- **No CSS for any class added since Phase 2a** — `.chat-tier2`, `.tier2-*`,
+  `.escalate-form`, `.ticket-actions`, `.kb-*`, and now nothing new beyond them.
+  Matches existing precedent; a styling pass would want the lot.
+- **`_kb.html` still has no link from `layout.html`/`index.html`.** Reachable by
+  typing `/kb` or through the after-action's links.
+- **Cross-session history is now available but unused.** `Store.history()` and
+  `domain_stats()` take `all_sessions=True`. A career-to-date view is the
+  obvious next thing to want and nothing builds it.
+- **`ipconfig` rendering still has no test coverage**, and it now has more to get
+  wrong: `_effective_mask`/`_effective_gateway` feed it. Related to convention 19.
 
 ## Conventions this codebase expects
 
-Carried forward from the Phase 2a handoff; still accurate and still easy to
-get wrong. The full numbered list (25 items) lives in git history for this
-file (see the commit that replaced this doc) and is summarized in `CLAUDE.md`
-where it overlaps architecture. The ones most likely to bite the next 2b
-fault task:
+Phase 2a's list (1–25) still holds; it is in this file's history at `27276e8` and
+every item remains true. What Phase 2b adds:
 
-1. **Register instances, not classes** — `register(Thing())` at the bottom
-   of the module.
-2. **`CLAUDE.md` and `AGENTS.md` must stay byte-identical below the title
-   line.** Check this before finishing a task; it silently drifted once
-   already (Tasks 3–14).
-3. **A hardcoded "complete" id-set test and escalate-correct count test both
-   break the moment a task registers a new fault.** Update them in the same
-   commit, not a later "documentation" task.
-4. **`tests/test_end_to_end.py`'s `HTTP_FIX`/`TARGET_FIELD` tables must stay
-   current in the task that registers a new escalate-incorrect fault** — the
-   guard iterates `all_faults()` and fails immediately otherwise.
-5. **`Fault.difficulty` decides how often a fault is dealt, not just how hard
-   it is.** Choose it with frequency in mind (`DIFFICULTY_WEIGHTS` in
-   `session/queue.py`).
-6. **A fault whose `reporters()` returns a list (a cascade) breaks any test
-   that assumes `assigned_to` names the reporter** — prefer
-   `session/queue.py:resolved_reporters(world, fault, placement)`.
-7. **`diagnostic_path()` and `canonical_resolutions()` receive only a
-   `Placement`, never `World`** — use the sentinel constants in
-   `faults/base.py`, or a literal topology string as a fallback.
-8. **Prove a new mechanism works against a real `SimulatedEnvironment` and
-   the real running app, not just green pytest.** Two out-of-plan defects in
-   Phase 2a were found exactly this way.
+26. **A new `Baseline` field must be added in three places, not two.**
+    `capture_baseline`, `check_invariants`, *and* `session/queue.py:forgive`. The
+    third is the one that gets forgotten, and forgetting it is silent.
+27. **A raw-substring assertion against rendered HTML is unreliable in both
+    directions.** An apostrophe becomes an entity, so a positive check fails and
+    a negative check passes vacuously. Compare `markupsafe.escape(...)`, or
+    — better, for a string you own — write the string without a possessive.
+28. **An action that lets a technician destroy something makes previously
+    unreachable code reachable.** `mail.remove_mailbox` turned a documented
+    "cannot happen" raise into a 500 on close. When adding a destructive action,
+    grep for what assumes the thing exists.
+29. **`difficulty` shifts the *aggregate* mix, not just one fault's frequency.**
+    `test_the_catalog_deals_mostly_routine_tickets` is the test a badly-chosen
+    difficulty fails; it is about the catalog, not the scheduler.
+30. **A distractor with no placements fails nothing.** Its conformance cases
+    vanish from the parametrized file instead. Same for any parametrized harness
+    keyed on a `placements()` call — an empty list is zero tests, not a failure.
+31. **A fault placed on anything without an `assigned_to` must declare its own
+    `reporters()`** — a server, a distribution list, a group. `resolved_reporters`
+    returns `[]` otherwise and the ticket goes to nobody, which surfaces as a
+    `KeyError`/`IndexError` well away from the fault that caused it.
+32. **Read pylint's exit code, not its score line.** One finding rounds away in a
+    codebase this size: the rating still reads `10.00/10` while pylint exits 8.
+    `uv run pylint src | tail -3` looks clean and CI fails — which is how a
+    `too-many-branches` finding got past a local check on this branch. `| tail`
+    hides the exit status as well as the message.
+33. **`HTTP_FIX` maps a fault to an ordered *list* of steps.** A repair needing
+    two world changes needs two entries, or `resolve_via_http` posts half the fix
+    and the ticket grades as closed-but-unfixed.
 
 ## Resuming
 
@@ -188,13 +199,15 @@ fault task:
 git checkout main
 git pull
 uv sync
-uv run pytest          # expect 942 passed
-uv run pylint src      # expect 10.00/10
+uv run pytest          # expect 1662 passed, 0 xfailed
+uv run python -m vitsc # then work a shift; the drill is the point
 ```
 
-Next step is Phase 2b Task 2 — pick the next candidate from the domain table
-in `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md` (Task 1's own
-section names the printing stuck-queue fault and network's duplicate-IP
-cascade as the two that need new plumbing; anything else in the table is
-closer to Task 1's shape). Write the task's own section into that plan before
-starting, per its own "Shape of the work" convention.
+Phase 2b's catalog is complete. The next plan has not been written. The obvious
+candidates, in the order they would pay off:
+
+1. **Verify the LM Studio path.** It is the last unticked item in two phases and
+   needs nothing but a machine with the model running.
+2. **A styling pass**, since the drill is now content-complete and looks it.
+3. **Career-to-date progress** across sessions, which the store can already
+   answer and nothing asks.

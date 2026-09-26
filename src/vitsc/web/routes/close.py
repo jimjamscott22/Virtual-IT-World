@@ -42,10 +42,30 @@ def render_after_action(request: Request, session, ticket) -> HTMLResponse:
 
 @router.post("/ticket/{ticket_id}/close", response_class=HTMLResponse)
 def close_ticket(request: Request, ticket_id: int, disposition: str = Form(...)):
+    """Resolve and close. Escalation is deliberately not reachable from here.
+
+    Phase 2a left two paths to `Disposition.ESCALATED`: this one, and the
+    reviewed `/ticket/{id}/escalate` flow. They were not equivalent. This path
+    skipped `review_escalation` entirely, so it never bounced a ticket that was
+    fixable, and it produced an after-action with no `tier2_note` — which is the
+    *only* place `Fault.escalation_reason` is ever spoken. A player escalating
+    from the dropdown was therefore told nothing about why the ticket was not
+    theirs, on exactly the tickets where that is the whole lesson.
+
+    With four escalate-correct faults in the catalog that stopped being cosmetic,
+    so the option is gone from `_ticket.html` and refused here as well: a
+    disposition the drill does not review is not a disposition it offers, and a
+    crafted request should not get a different answer from a click.
+    """
     session = _session(request)
     ticket = _ticket_or_404(request, ticket_id)
     if ticket.state is TicketState.CLOSED:
         raise HTTPException(status_code=409, detail="Ticket is already closed")
+    if Disposition(disposition) is Disposition.ESCALATED:
+        raise HTTPException(
+            status_code=400,
+            detail="Escalate a ticket through /ticket/{id}/escalate, which tier-2 reviews.",
+        )
 
     ticket.close(Disposition(disposition), at=session.env.world.clock)
     return render_after_action(request, session, ticket)

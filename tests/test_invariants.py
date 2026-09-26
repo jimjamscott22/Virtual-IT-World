@@ -1,5 +1,10 @@
+from random import Random
+
 import pytest
 
+from vitsc.env.base import Action
+from vitsc.env.simulated import SimulatedEnvironment
+from vitsc.faults.registry import get_fault
 from vitsc.world.invariants import capture_baseline, check_invariants
 from vitsc.world.models import ServiceState
 from vitsc.world.seed import load_world
@@ -61,3 +66,60 @@ def test_restarting_a_service_the_fault_stopped_is_not_a_violation(world):
     baseline = capture_baseline(world)
     world.machines["MER-WS-001"].services["Spooler"] = ServiceState.RUNNING
     assert check_invariants(world, baseline) == []
+
+
+# --- the mail pair, deferred from Phase 2a ------------------------------------
+
+
+def test_deleting_a_mailbox_is_collateral_damage():
+    world = load_world()
+    baseline = capture_baseline(world)
+    env = SimulatedEnvironment(world)
+    env.execute(Action(kind="mail.remove_mailbox", target="m.alvarez"))
+    assert check_invariants(env.world, baseline) == ["mailbox for m.alvarez was deleted"]
+
+
+def test_setting_a_quota_below_current_usage_is_collateral_damage():
+    world = load_world()
+    baseline = capture_baseline(world)
+    env = SimulatedEnvironment(world)
+    used = world.mail.mailboxes["d.okafor"].used_mb
+    env.execute(
+        Action(kind="mail.set_quota", target="d.okafor", args={"quota_mb": str(used - 1)})
+    )
+    assert check_invariants(env.world, baseline) == [
+        "mailbox quota for d.okafor was set below its current usage"
+    ]
+
+
+def test_an_over_quota_mailbox_in_the_baseline_is_never_reported_as_damage():
+    """The capture-after-apply guarantee, for the mail pair specifically.
+
+    `mail.mailbox_full` leaves its victim over quota *before* the baseline is
+    taken. If the invariant compared quota against usage unconditionally, the
+    fault would report itself as the technician's collateral damage the moment it
+    landed — the exact defect `capture_baseline`'s `allowed_dns` field was fixed
+    for in Phase 2a.
+    """
+    world = load_world()
+    fault = get_fault("mail.mailbox_full")
+    placement = fault.placements(world)[0]
+    fault.apply(world, placement, Random(0))
+    baseline = capture_baseline(world)
+    assert check_invariants(world, baseline) == []
+
+
+def test_raising_a_quota_to_clear_the_fault_is_not_damage():
+    """One of `mail.mailbox_full`'s two canonical fixes moves a quota. Neither
+    the movement nor its direction is what the invariant watches."""
+    world = load_world()
+    fault = get_fault("mail.mailbox_full")
+    placement = fault.placements(world)[0]
+    fault.apply(world, placement, Random(0))
+    baseline = capture_baseline(world)
+    env = SimulatedEnvironment(world)
+    env.execute(
+        Action(kind="mail.set_quota", target=placement.key, args={"quota_mb": "999999"})
+    )
+    assert fault.is_present(env.world, placement) is False
+    assert check_invariants(env.world, baseline) == []

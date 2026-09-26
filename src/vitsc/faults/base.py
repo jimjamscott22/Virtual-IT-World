@@ -21,12 +21,31 @@ PLACEHOLDER = "{placement}"
 PLACEHOLDER_MACHINE = "{machine}"
 PLACEHOLDER_GROUP = "{group}"
 PLACEHOLDER_PRINTER = "{printer}"
+PLACEHOLDER_SUB_GROUP = "{sub_group}"
+PLACEHOLDER_MAIL_SERVER = "{mail_server}"
+
+
+def sub_group_name(parent: str) -> str:
+    """`ACC-Share-RW` -> `ACC-Staff`.
+
+    The convention lives here, beside the sentinel that resolves it, because
+    both `ad.nested_group_membership` (which creates the group) and `bind()`
+    (which names it in a resolution) have to agree on it, and two copies of a
+    naming rule is one copy too many.
+    """
+    return f"{parent.split('-', 1)[0]}-Staff" if parent else ""
 
 
 class Placement(BaseModel):
     """A world entity a fault is attached to."""
 
-    kind: Literal["user", "machine", "printer", "share"]
+    # `list` (a mail distribution list) and `group` (a directory group) were
+    # added in Phase 2b, for the same reason the earlier four are spelled out:
+    # this field is what the session layer reads to find a person, and calling a
+    # distribution list a machine would have been a lie in exactly that field.
+    # Anything placed on a `list` or a `group` must declare its own
+    # `reporters()` — neither resolves to a person the way `assigned_to` does.
+    kind: Literal["user", "machine", "printer", "share", "list", "group"]
     key: str
 
 
@@ -94,6 +113,8 @@ def _sentinels(at: Placement, world: World) -> dict[str, str]:
         PLACEHOLDER_MACHINE: _machine_key(world, at),
         PLACEHOLDER_GROUP: _share_group(world, at) or "",
         PLACEHOLDER_PRINTER: _printer_key(at),
+        PLACEHOLDER_SUB_GROUP: sub_group_name(_share_group(world, at) or ""),
+        PLACEHOLDER_MAIL_SERVER: world.mail.server,
     }
 
 
@@ -101,15 +122,31 @@ def _machine_key(world: World, at: Placement) -> str:
     if at.kind == "machine":
         return at.key
     if at.kind == "printer":
-        return at.key.split("/", 1)[0]
+        # Two shapes of printer placement, both legitimate: `HOST/PRINTER` names
+        # one workstation's installation of a printer (`print.wrong_driver`),
+        # while a bare printer name names the device itself and every machine
+        # that has it (`print.printer_offline`, `print.stuck_job`,
+        # `print.driver_after_model_swap`). For the second, the machine a
+        # resolution or diagnostic means is the first workstation holding it.
+        host, _, printer = at.key.partition("/")
+        return host if printer else _first_host_with(world, at.key)
     machine = world.machine_for(at.key) if at.kind == "user" else None
     return machine.hostname if machine else ""
+
+
+def _first_host_with(world: World, printer_name: str) -> str:
+    hosts = sorted(
+        m.hostname
+        for m in world.machines.values()
+        if m.assigned_to is not None and printer_name in m.installed_printers
+    )
+    return hosts[0] if hosts else ""
 
 
 def _printer_key(at: Placement) -> str:
     if at.kind != "printer":
         return ""
-    return at.key.split("/", 1)[1]
+    return at.key.partition("/")[2] or at.key
 
 
 def _share_group(world: World, at: Placement) -> str | None:
@@ -121,7 +158,7 @@ def _share_group(world: World, at: Placement) -> str | None:
 
 def bind(resolution: ResolutionPath, at: Placement, world: World) -> ResolutionPath:
     """Replace placement sentinels (`{placement}`, `{machine}`, `{group}`,
-    `{printer}`) with concrete world keys.
+    `{printer}`, `{sub_group}`, `{mail_server}`) with concrete world keys.
 
     `canonical_resolutions()` cannot know its placement, so callers bind it.
     """

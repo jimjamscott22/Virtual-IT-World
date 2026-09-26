@@ -30,11 +30,16 @@ tickets, and an unnecessary escalation can be returned by simulated tier 2.
 - Priority selection, SLA tracking, ticket chat, closure, and reviewed tier-2
   escalation.
 - A fixed eight-hour simulated shift with an end-of-shift summary at `/shift`.
-- Fourteen faults across identity, endpoint, networking, file shares, mail,
-  and printing — including a multi-user print-server cascade and
-  difficulty-weighted scheduling so hard, rare faults stay rare on purpose.
-- Five non-ticketable distractors that add realistic noise without causing the
+- Thirty-two faults across identity, networking, printing, endpoint, and mail,
+  including five multi-user incidents that open several tickets from one cause,
+  and difficulty-weighted scheduling so the hard, rare faults stay rare on
+  purpose.
+- Four faults where escalating is the correct answer and fixing it yourself is
+  not, each for a different reason.
+- Eleven non-ticketable distractors that add realistic noise without causing the
   reported issue.
+- A fourteen-article knowledge base of procedures, deliberately containing no
+  answer keys.
 - Eight technician tools: AD console, PowerShell, networking, Event Viewer,
   print management, remote session, knowledge base, and mail console.
 - Template-driven user personas by default, with an optional LM Studio-backed
@@ -42,7 +47,7 @@ tickets, and an unnecessary escalation can be returned by simulated tier 2.
 - Per-ticket grading, cascade-aware duplicate-fix detection, after-action
   reports, a local knowledge base, and SQLite history for closed tickets.
 - A stable lab environment containing 20 users, 10 workstations, 4 servers,
-  3 printers, department shares, and one mailbox per user.
+  5 printers, 5 department shares, 20 mailboxes, and 4 distribution lists.
 - Automated conformance checks proving that registered faults are diagnosable,
   repairable, and isolated from the technician tools.
 
@@ -175,6 +180,7 @@ architecture tests enforce this boundary.
 ## Documentation
 
 - [Phase 2a depth-mechanics plan](docs/superpowers/plans/2026-08-14-phase-2a-depth-mechanics.md)
+- [Phase 2b catalog plan](docs/superpowers/plans/2026-08-14-phase-2b-catalog.md)
 - [Current development handoff](docs/handoff.md)
 - [LM Studio verification guide](docs/verifying-lmstudio.md)
 
@@ -184,22 +190,24 @@ Released under the [MIT License](LICENSE).
 
 ## Current state
 
-As of **September 9, 2026**, Phase 1 and all of Phase 2a (Tasks 1–17) are
-complete and merged into `main`, and Phase 2b (catalog breadth) is under way.
-The repository currently contains 14 registered faults across five domains, 5
-distractors, 8 technician tools, and 942 automated tests, all passing with
-`uv run pylint` at 10.00/10 on both `src` and `tests`.
+As of **September 26, 2026**, Phase 1 and Phase 2a are complete, and Phase 2b
+has taken the catalog to its target breadth. The repository contains 32
+registered faults (identity 8, networking 6, printing 6, endpoint 6, mail 6),
+11 distractors, 15 knowledge-base articles, 8 technician tools, and 1,662
+automated tests, all passing with `uv run pylint` at 10.00/10 on both `src` and
+`tests`.
 
-The estate grew during Phase 2b's groundwork to 20 users and 10 workstations,
-the drill gained a fixed eight-hour shift (`/shift`), and the ticket scheduler
-now draws faults weighted by `difficulty` rather than by placement count, so a
-fault's rarity is a deliberate choice instead of an accident of how many
-targets it has. Phase 2b's Task 1 — `ad.cached_credentials_expired`, an
-identity fault placed on a machine rather than a user — has landed on top of
-that groundwork.
+The estate grew during Phase 2b's groundwork to 20 users and 10 workstations, the
+drill gained a fixed eight-hour shift (`/shift`), and the ticket scheduler now
+draws faults weighted by `difficulty` rather than by placement count, so a
+fault's rarity is a deliberate choice instead of an accident of how many targets
+it has.
 
-The next planned checkpoint is Phase 2b Task 2, continuing down the fault list
-in `docs/superpowers/plans/2026-08-14-phase-2b-catalog.md` toward its
-30+-fault target. The model-backed LM Studio path still requires the manual
-verification described above; the model-free application and test suite do
-not depend on it.
+Every item in Phase 2b's definition of done is met except one inherited from
+Phase 2a: the model-backed LM Studio path still requires the manual verification
+described above, because no development environment so far has had network access
+to a local model. The model-free application and test suite do not depend on it.
+
+The likely next steps, in the order they would pay off, are that verification, a
+visual styling pass now that the drill is content-complete, and a career-to-date
+progress view across sessions.
