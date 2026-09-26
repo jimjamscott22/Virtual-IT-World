@@ -124,3 +124,46 @@ def test_init_on_a_pre_cascade_database_adds_the_column(tmp_path):
     s.init()
     s.save_closed(*closed_ticket(cascade_id="C2"))
     assert s.history()[0].cascade_id == "C2"
+
+
+def test_a_new_session_does_not_inherit_an_earlier_one_s_rows(tmp_path):
+    """The defect this column exists for, found by running the real app twice.
+
+    `__main__.py` keeps one database at `~/.vitsc/sessions.sqlite3`, so every
+    shift a player works lands in the same table. The shift summary sums the
+    store's rows, so it was reporting an earlier run's tickets as part of today's
+    — a shift where four tickets were closed read as seven. The simulated clock
+    restarts at 09:00 every session, so `closed_at` cannot separate two runs and
+    nothing else could either.
+    """
+    path = tmp_path / "shared.sqlite3"
+    yesterday = Store(path)
+    yesterday.init()
+    yesterday.save_closed(*closed_ticket(ticket_id=1))
+
+    today = Store(path)
+    today.init()
+    assert today.history() == []
+    assert today.domain_stats() == {}
+
+    today.save_closed(*closed_ticket(ticket_id=2))
+    assert [r.ticket_id for r in today.history()] == [2]
+    assert today.domain_stats()["identity"].total == 1
+    # Yesterday's row is still there, and still yesterday's.
+    assert [r.ticket_id for r in yesterday.history()] == [1]
+    assert [r.ticket_id for r in today.history(all_sessions=True)] == [2, 1]
+    assert today.domain_stats(all_sessions=True)["identity"].total == 2
+
+
+def test_rows_written_before_the_column_existed_belong_to_no_session(tmp_path):
+    """A database from an earlier release has NULL `session_id`. Those rows are
+    somebody else's shift and must not be counted in this one."""
+    path = tmp_path / "legacy.sqlite3"
+    store = Store(path)
+    store.init()
+    store.save_closed(*closed_ticket(ticket_id=1))
+    with sqlite3.connect(path) as conn:
+        conn.execute("UPDATE closed_tickets SET session_id = NULL")
+
+    assert store.history() == []
+    assert len(store.history(all_sessions=True)) == 1
