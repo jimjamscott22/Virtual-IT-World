@@ -333,3 +333,30 @@ def test_the_choice_is_reproducible_for_a_seed():
     first = [choose_fault_and_placement(candidates, Random(4)) for _ in range(5)]
     again = [choose_fault_and_placement(candidates, Random(4)) for _ in range(5)]
     assert [(f.id, p.key) for f, p in first] == [(f.id, p.key) for f, p in again]
+
+
+def test_forgiving_nothing_leaves_every_baseline_field_intact():
+    """Structural guard on `forgive()`.
+
+    It rebuilds a `Baseline` by naming each field, so a field added to `Baseline`
+    and forgotten here silently defaults to empty on every arrival: the invariant
+    it backs never fires in a real session, while its own unit tests keep
+    passing. That is how the two mail invariants shipped inert for one commit.
+
+    With `before == after` — no fault applied — forgiving must be the identity,
+    so any dropped field shows up as the difference between a populated standing
+    baseline and what comes back.
+    """
+    from vitsc.session.queue import forgive
+    from vitsc.world.invariants import capture_baseline
+
+    world = load_world()
+    standing = capture_baseline(world)
+    # Every field has to be non-empty, or "dropped" and "empty anyway" look
+    # alike. Iterated through `model_dump()` rather than `model_fields` because
+    # the latter is a pydantic descriptor pylint cannot see is a dict.
+    for name, value in standing.model_dump().items():
+        assert value, f"capture_baseline leaves {name} empty; this test cannot see it"
+
+    unchanged = capture_baseline(world)
+    assert forgive(standing, unchanged, unchanged) == standing

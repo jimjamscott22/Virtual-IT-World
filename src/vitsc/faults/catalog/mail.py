@@ -36,18 +36,34 @@ def _mailbox_owners(world: World) -> list[Placement]:
 
 
 def _mailbox(world: World, at: Placement) -> Mailbox:
-    """The placement's mailbox, or a loud failure.
+    """The placement's mailbox, or a loud failure. For `apply()` only.
 
     `placements()` only ever returns users, and `seed.py` derives one mailbox
-    per user, so `None` here means the world was built wrong. An `assert`
-    would say the same thing but vanish under `python -O`, taking the check
-    with it — and `is_present()` is the pass/fail gate, so it must not
-    silently read `False` because a mailbox went missing.
+    per user, so at apply time `None` here means the world was built wrong. An
+    `assert` would say the same thing but vanish under `python -O`, taking the
+    check with it.
+
+    Not for `is_present()`, which runs *after* a technician has had their hands
+    on the world — see `_mailbox_is_gone` below.
     """
     mailbox = world.mailbox_for(at.key)
     if mailbox is None:
         raise KeyError(f"no mailbox for {at.key}")
     return mailbox
+
+
+def _mailbox_is_gone(world: World, at: Placement) -> bool:
+    """Whether the mailbox this fault is about has been deleted outright.
+
+    `mail.remove_mailbox` is a real action a technician can take, so by the time
+    `is_present()` runs the mailbox may not exist — and the raising helper above
+    would then turn grading a closed ticket into a 500. Every mailbox-scoped
+    fault treats a missing mailbox as **still present**, which is the honest
+    answer: the person whose mail stopped working cannot send mail now either.
+    The deletion is separately reported as collateral damage by
+    `world/invariants.py`, so the technician is told both things.
+    """
+    return world.mailbox_for(at.key) is None
 
 
 def _is_external(world: World, address: str | None) -> bool:
@@ -75,6 +91,8 @@ class MailboxFull(FaultBase):
         mailbox.used_mb = mailbox.quota_mb + rng.uniform(50, 500)
 
     def is_present(self, world: World, at: Placement) -> bool:
+        if _mailbox_is_gone(world, at):
+            return True
         mailbox = _mailbox(world, at)
         return mailbox.used_mb >= mailbox.quota_mb
 
@@ -147,6 +165,8 @@ class ExternalForwardingRule(FaultBase):
         # runs, on a mailbox that is still redirecting every message out of
         # the company. The gate is what "was it fixed" means; it has to mean
         # the mail stopped leaving.
+        if _mailbox_is_gone(world, at):
+            return True
         mailbox = _mailbox(world, at)
         return any(
             _is_external(world, rule.forward_to) for rule in mailbox.rules
@@ -263,6 +283,8 @@ class StaleDelegate(FaultBase):
             mailbox.delegates.append(DEPARTED_DELEGATE)
 
     def is_present(self, world: World, at: Placement) -> bool:
+        if _mailbox_is_gone(world, at):
+            return True
         mailbox = _mailbox(world, at)
         return any(sam not in world.org.users for sam in mailbox.delegates)
 

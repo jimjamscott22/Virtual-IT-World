@@ -6,6 +6,7 @@ from vitsc.distractors.registry import get_distractor
 from vitsc.faults.base import bind
 from vitsc.faults.registry import all_faults, get_fault
 from vitsc.persona.client import scrub
+from vitsc.session.tier2 import _evidence_targets
 from vitsc.tools.registry import all_tools
 from vitsc.web.app import create_app
 from vitsc.web.deps import AppSession
@@ -84,6 +85,22 @@ TARGET_FIELD = {
 }
 
 
+def escalate_via_http(client, ticket, fault, world):
+    """Hand a ticket to tier-2 through the reviewed flow.
+
+    The only way to reach `Disposition.ESCALATED` since the unreviewed dropdown
+    option was removed, and the right one: it is the path that produces a
+    `tier2_note`, which is the only place a fault's `escalation_reason` is ever
+    spoken. The note names a target from the fault's own declared evidence, so
+    tier-2 has something to accept.
+    """
+    targets = sorted(_evidence_targets(ticket, fault, world))
+    note = f"Checked {targets[0]} and the reading confirms this is not ours to fix."
+    r = client.post(f"/ticket/{ticket.id}/escalate", data={"note": note})
+    assert r.status_code == 200
+    return r
+
+
 def resolve_via_http(client, ticket, fault, world):
     """Submit the fault's canonical fix through POST /ticket/{id}/tool,
     exercising the real tool-name/command dispatch and args parsing instead
@@ -139,15 +156,15 @@ def test_a_full_ticket_can_be_worked_through_http(tmp_path, seed):
     client.post(f"/ticket/{ticket.id}/tool",
                 data={"tool": "ad", "command": "get-user", "args": f"sam={ticket.placement.key}"})
 
-    # Resolve through the same HTTP tool surface, or escalate when that is
-    # the correct disposition.
+    # Resolve through the same HTTP tool surface, or hand it to tier-2 through
+    # the reviewed escalate flow when that is the correct disposition.
     if fault.escalation_is_correct:
-        disposition = "escalated"
+        body = escalate_via_http(client, ticket, fault, session.env.world).text
     else:
-        disposition = "resolved"
         resolve_via_http(client, ticket, fault, session.env.world)
-
-    body = client.post(f"/ticket/{ticket.id}/close", data={"disposition": disposition}).text
+        body = client.post(
+            f"/ticket/{ticket.id}/close", data={"disposition": "resolved"}
+        ).text
 
     # After-action reveals the cause, and the record persists. `root_cause` is
     # autoescaped like any other template output, so compare the escaped form.
@@ -329,12 +346,10 @@ def test_a_seeded_distractor_does_not_block_any_ticket(tmp_path):
     fault = get_fault(ticket.fault_id)
 
     if fault.escalation_is_correct:
-        disposition = "escalated"
+        body = escalate_via_http(c, ticket, fault, session.env.world).text
     else:
-        disposition = "resolved"
         resolve_via_http(c, ticket, fault, session.env.world)
-
-    body = c.post(f"/ticket/{ticket.id}/close", data={"disposition": disposition}).text
+        body = c.post(f"/ticket/{ticket.id}/close", data={"disposition": "resolved"}).text
     record = session.store.history()[0]
     assert record.correct is True, f"{fault.id} graded incorrect: {record.verdict}"
     assert record.collateral_count == 0, (
@@ -343,3 +358,60 @@ def test_a_seeded_distractor_does_not_block_any_ticket(tmp_path):
     # Every seeded distractor is accounted for in the report.
     for distractor_id, _ in session.queue.distractors:
         assert get_distractor(distractor_id).note in body
+
+
+def test_deleting_a_mailbox_to_clear_a_quota_ticket_is_caught(tmp_path):
+    """The mail invariants, through the real surface.
+
+    `mail.mailbox_full` has two legitimate fixes and a third thing a technician
+    might try that looks like a fix and is not: deleting the mailbox clears every
+    symptom by throwing the mail away. That is what an invariant is for, and
+    before the mail pair landed nothing in the drill said a word about it.
+
+    Also the regression test for the crash that adding `mail.remove_mailbox`
+    created: `is_present()` read the mailbox through a helper that raised when it
+    was missing, so closing this ticket was a 500 rather than a bad grade.
+    """
+    session = AppSession.build(db_path=tmp_path / "wrongfix.sqlite3", seed=0)
+    client = TestClient(create_app(session))
+    fault = get_fault("mail.mailbox_full")
+    tickets = session.queue.open_for(fault, fault.placements(session.env.world)[0])
+    ticket = tickets[0]
+    sam = ticket.placement.key
+
+    r = client.post(f"/ticket/{ticket.id}/tool", data={
+        "tool": "mail", "command": "remove-mailbox", "args": f"sam={sam}"})
+    assert r.status_code == 200
+
+    body = client.post(f"/ticket/{ticket.id}/close", data={"disposition": "resolved"}).text
+    assert "Resolved correctly" not in body
+
+    record = session.store.history()[0]
+    assert record.correct is False
+    assert record.collateral_count == 1
+    assert f"mailbox for {sam} was deleted" in body
+
+
+def test_setting_a_quota_below_usage_is_caught_through_http(tmp_path):
+    """The other half of the pair, and the more tempting mistake: "enforce the
+    quota" reads like the right instinct and leaves the person exactly as unable
+    to send as the fault did."""
+    session = AppSession.build(db_path=tmp_path / "lowquota.sqlite3", seed=0)
+    client = TestClient(create_app(session))
+    fault = get_fault("mail.mailbox_full")
+    tickets = session.queue.open_for(fault, fault.placements(session.env.world)[0])
+    ticket = tickets[0]
+    victim = "d.okafor"
+    assert victim != ticket.placement.key
+
+    client.post(f"/ticket/{ticket.id}/tool", data={
+        "tool": "mail", "command": "set-quota", "args": f"sam={victim} quota_mb=1"})
+    resolve_via_http(client, ticket, fault, session.env.world)
+
+    body = client.post(f"/ticket/{ticket.id}/close", data={"disposition": "resolved"}).text
+    record = session.store.history()[0]
+    # The ticket's own fault *was* cleared; the damage is to somebody else.
+    assert fault.is_present(session.env.world, ticket.placement) is False
+    assert record.correct is False
+    assert record.collateral_count == 1
+    assert f"mailbox quota for {victim} was set below its current usage" in body

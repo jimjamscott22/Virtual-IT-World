@@ -108,6 +108,12 @@ def forgive(standing: Baseline, before: Baseline, after: Baseline) -> Baseline:
     def dropped(name: str) -> set[str]:
         return before.group_members.get(name, set()) - after.group_members.get(name, set())
 
+    # Every field of `Baseline` must be named here. One left out is not a
+    # compile error and not a test failure either: it silently defaults to empty
+    # on every arrival, so the invariant it backs never fires in a real session
+    # while its own unit tests go on passing. That is exactly what happened when
+    # the mail pair was added, and it is what
+    # `test_forgiving_nothing_leaves_every_baseline_field_intact` now guards.
     return Baseline(
         enabled_users=standing.enabled_users
         - (before.enabled_users - after.enabled_users),
@@ -119,6 +125,12 @@ def forgive(standing: Baseline, before: Baseline, after: Baseline) -> Baseline:
         },
         # DNS is the one invariant a fault *adds* to rather than removes from.
         allowed_dns=standing.allowed_dns | (after.allowed_dns - before.allowed_dns),
+        mailboxes=standing.mailboxes - (before.mailboxes - after.mailboxes),
+        # `mail.mailbox_full` pushes its victim over quota, so that mailbox drops
+        # out of the within-quota set when the fault lands. Forgiven, like every
+        # other change a fault's own `apply()` makes.
+        mailboxes_within_quota=standing.mailboxes_within_quota
+        - (before.mailboxes_within_quota - after.mailboxes_within_quota),
     )
 
 
