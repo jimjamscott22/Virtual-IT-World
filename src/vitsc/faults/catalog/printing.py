@@ -11,7 +11,7 @@ from vitsc.faults.base import (
     UserSymptoms,
 )
 from vitsc.faults.registry import register
-from vitsc.world.models import EventEntry, ServiceState, World
+from vitsc.world.models import EventEntry, JobStatus, PrintJob, ServiceState, World
 
 GENERIC_DRIVER = "Generic / Text Only"
 # Any printer hosted on the print server works as the diagnostic target —
@@ -20,6 +20,40 @@ GENERIC_DRIVER = "Generic / Text Only"
 # diagnostic already hardcodes `MER-FS-01`. A fault cannot resolve one from
 # `World` itself: `diagnostic_path()` receives only a `Placement`.
 _SERVER_DIAGNOSTIC_PRINTER = "PRT-ACC-01"
+
+
+# What the replacement device is. A different manufacturer on purpose: a driver
+# that is merely a later revision of the same model usually still prints, and
+# the ticket has to be visible from the first page that comes out.
+REPLACEMENT_MODEL = "Brother HL-L6400DW"
+REPLACEMENT_DRIVER = "Brother HL-L6400DW series"
+
+
+def _installed_printers(world: World) -> list[Placement]:
+    """Printers somebody actually has, named on their own.
+
+    Distinct from `print.wrong_driver`'s `HOST/PRINTER` placements: these faults
+    are about the device, so the placement is the device.
+    """
+    installed = {
+        name
+        for m in world.machines.values()
+        if m.assigned_to is not None
+        for name in m.installed_printers
+    }
+    return [Placement(kind="printer", key=name) for name in sorted(installed)]
+
+
+def _users_of(world: World, printer_name: str) -> list[str]:
+    return sorted(
+        m.assigned_to
+        for m in world.machines.values()
+        if m.assigned_to is not None and printer_name in m.installed_printers
+    )
+
+
+def _first_user_of(world: World, printer_name: str) -> str:
+    return _users_of(world, printer_name)[0]
 
 
 def _workstations_with_printers(world: World) -> list[Placement]:
@@ -227,3 +261,196 @@ class ServerSpoolerStopped(FaultBase):
 register(SpoolerStopped())
 register(WrongDriver())
 register(ServerSpoolerStopped())
+
+
+class PrinterOffline(FaultBase):
+    """The device itself, not the queue and not the workstation.
+
+    The cheapest ticket in the catalog and worth having: jobs queue up and stay
+    queued, which is visibly different from `print.spooler_stopped`, where they
+    vanish without a trace.
+    """
+
+    id = "print.printer_offline"
+    domain = "printing"
+    difficulty = 1
+    canonical_title = "Printer reporting offline at the device"
+    supported_backends = frozenset({"simulated", "winrm"})
+    leak_terms = ["offline", "power", "device", "reset"]
+    escalation_is_correct = False
+    kb_articles = ["printing-nothing-prints", "printing-queue-and-device"]
+
+    def placements(self, world: World) -> list[Placement]:
+        return _installed_printers(world)
+
+    def apply(self, world: World, at: Placement, rng: Random) -> None:
+        printer = world.printers[at.key]
+        printer.online = False
+        printer.jobs.append(
+            PrintJob(
+                job_id=rng.randint(40, 90),
+                owner_sam=_first_user_of(world, at.key),
+                document="Delivery note",
+                pages=2,
+            )
+        )
+
+    def is_present(self, world: World, at: Placement) -> bool:
+        return not world.printers[at.key].online
+
+    def symptoms(self, world: World, at: Placement) -> UserSymptoms:
+        return UserSymptoms(
+            opening="My printing is all sitting there waiting and none of it comes out.",
+            onset="Since I got in this morning.",
+            scope="I think anyone using that one has the same problem.",
+            error_text=None,
+        )
+
+    def diagnostic_path(self, at: Placement) -> list[Query]:
+        return [
+            Query(kind="printer.jobs", target=PLACEHOLDER),
+            Query(kind="printer.state", target=PLACEHOLDER),
+        ]
+
+    def canonical_resolutions(self) -> list[ResolutionPath]:
+        return [
+            ResolutionPath(
+                label="Power-cycle the device and bring it back online",
+                actions=[Action(kind="printer.reset", target=PLACEHOLDER)],
+            ),
+        ]
+
+
+class StuckJobAtQueueHead(FaultBase):
+    """A cascade: one document nobody can print past.
+
+    The job at the head of a shared queue errored and everything behind it is
+    waiting. Restarting the spooler does not clear it — the job comes back — so
+    this is the printing fault where the reflex fix is the wrong one.
+    """
+
+    id = "print.stuck_job"
+    domain = "printing"
+    difficulty = 2
+    canonical_title = "Errored job at the head of a shared print queue"
+    supported_backends = frozenset({"simulated", "winrm"})
+    leak_terms = ["stuck", "queue", "spool", "job"]
+    escalation_is_correct = False
+    kb_articles = ["printing-nothing-prints", "printing-queue-and-device"]
+
+    def placements(self, world: World) -> list[Placement]:
+        return _installed_printers(world)
+
+    def apply(self, world: World, at: Placement, rng: Random) -> None:
+        printer = world.printers[at.key]
+        users = _users_of(world, at.key)
+        printer.jobs.append(
+            PrintJob(
+                job_id=101,
+                owner_sam=users[0],
+                document="Manifest batch",
+                pages=rng.randint(40, 180),
+                status=JobStatus.ERROR,
+            )
+        )
+        printer.jobs.extend(
+            PrintJob(job_id=102 + i, owner_sam=sam, document="Delivery note", pages=1)
+            for i, sam in enumerate(users[1:])
+        )
+
+    def is_present(self, world: World, at: Placement) -> bool:
+        return any(job.status is JobStatus.ERROR for job in world.printers[at.key].jobs)
+
+    def symptoms(self, world: World, at: Placement) -> UserSymptoms:
+        return UserSymptoms(
+            opening="Everything I send just piles up behind somebody else's big "
+            "document and nothing moves.",
+            onset="Since about eleven.",
+            scope="Everyone who uses that printer is waiting on the same thing.",
+            error_text=None,
+        )
+
+    def diagnostic_path(self, at: Placement) -> list[Query]:
+        return [Query(kind="printer.jobs", target=PLACEHOLDER)]
+
+    def canonical_resolutions(self) -> list[ResolutionPath]:
+        return [
+            ResolutionPath(
+                label="Clear the queue",
+                actions=[Action(kind="printer.clear_queue", target=PLACEHOLDER)],
+            ),
+        ]
+
+    def reporters(self, world: World, at: Placement) -> list[str] | None:
+        return _users_of(world, at.key)
+
+
+class DriverAfterModelSwap(FaultBase):
+    """The hardware changed, not the computer.
+
+    A cascade, and the mirror image of `print.wrong_driver`: there, one
+    workstation was given the wrong driver. Here the *printer* was replaced with
+    a different model and every workstation still holds the driver for the old
+    one, so everybody prints gibberish at once. The placement is the printer,
+    and the repair is published from the print server rather than repeated at
+    every desk.
+    """
+
+    id = "print.driver_after_model_swap"
+    domain = "printing"
+    difficulty = 3
+    canonical_title = "Printer replaced with a different model; workstations hold the old driver"
+    supported_backends = frozenset({"simulated", "winrm"})
+    leak_terms = ["driver", "model", "swap", "replace"]
+    escalation_is_correct = False
+    kb_articles = ["printing-nothing-prints", "printing-queue-and-device"]
+
+    def placements(self, world: World) -> list[Placement]:
+        return _installed_printers(world)
+
+    def apply(self, world: World, at: Placement, rng: Random) -> None:
+        printer = world.printers[at.key]
+        printer.model = REPLACEMENT_MODEL
+        printer.correct_driver = REPLACEMENT_DRIVER
+
+    def is_present(self, world: World, at: Placement) -> bool:
+        printer = world.printers[at.key]
+        return any(
+            machine.printer_drivers.get(printer.name) != printer.correct_driver
+            for machine in world.machines.values()
+            if printer.name in machine.installed_printers
+        )
+
+    def symptoms(self, world: World, at: Placement) -> UserSymptoms:
+        return UserSymptoms(
+            opening="A different printer turned up yesterday and now everything "
+            "that comes out of it is pages of nonsense characters.",
+            onset="Since the one that was there before got taken away.",
+            scope="Everyone printing to that one is getting the same rubbish.",
+            error_text=None,
+        )
+
+    def diagnostic_path(self, at: Placement) -> list[Query]:
+        return [
+            Query(
+                kind="printer.state",
+                target=PLACEHOLDER,
+                args={"from": PLACEHOLDER_MACHINE},
+            ),
+        ]
+
+    def canonical_resolutions(self) -> list[ResolutionPath]:
+        return [
+            ResolutionPath(
+                label="Publish the new driver from the print server",
+                actions=[Action(kind="printer.push_driver", target=PLACEHOLDER)],
+            ),
+        ]
+
+    def reporters(self, world: World, at: Placement) -> list[str] | None:
+        return _users_of(world, at.key)
+
+
+register(PrinterOffline())
+register(StuckJobAtQueueHead())
+register(DriverAfterModelSwap())

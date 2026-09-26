@@ -869,6 +869,31 @@ class SimulatedEnvironment:
             ok=True, rendered=f"Group {child.name} nested inside {parent.name}."
         )
 
+    def _do_printer_push_driver(self, a: Action) -> ActionResult:
+        """Update the driver on every workstation that has this printer.
+
+        The per-workstation `printer.reinstall_driver` stays as it was; this is
+        the server-side equivalent, which is what a shared printer on a print
+        server actually offers. Without it, an estate-wide driver fault would
+        have no single canonical repair to declare — `canonical_resolutions()`
+        receives only a `Placement` and cannot enumerate machines.
+        """
+        printer = self.world.printers.get(a.target)
+        if printer is None:
+            return ActionResult(ok=False, rendered=f"Set-PrintConfiguration: {NOT_FOUND}")
+        updated = [
+            machine
+            for machine in self.world.machines.values()
+            if printer.name in machine.installed_printers
+        ]
+        for machine in updated:
+            machine.printer_drivers[printer.name] = printer.correct_driver
+        return ActionResult(
+            ok=True,
+            rendered=f"Driver '{printer.correct_driver}' published for {printer.name} "
+            f"and applied to {len(updated)} workstation(s).",
+        )
+
     def _do_printer_clear_queue(self, a: Action) -> ActionResult:
         printer = self.world.printers.get(a.target)
         if printer is None:

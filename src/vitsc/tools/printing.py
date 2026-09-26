@@ -14,6 +14,7 @@ class PrintManagement(DispatchTool):
         "reinstall-driver": "printer.reinstall_driver",
         "clear-queue": "printer.clear_queue",
         "reset-printer": "printer.reset",
+        "push-driver": "printer.push_driver",
     }
 
     def target_key(self, command: str, args: dict[str, str]) -> str:

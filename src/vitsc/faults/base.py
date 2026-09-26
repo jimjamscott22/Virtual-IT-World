@@ -114,15 +114,31 @@ def _machine_key(world: World, at: Placement) -> str:
     if at.kind == "machine":
         return at.key
     if at.kind == "printer":
-        return at.key.split("/", 1)[0]
+        # Two shapes of printer placement, both legitimate: `HOST/PRINTER` names
+        # one workstation's installation of a printer (`print.wrong_driver`),
+        # while a bare printer name names the device itself and every machine
+        # that has it (`print.printer_offline`, `print.stuck_job`,
+        # `print.driver_after_model_swap`). For the second, the machine a
+        # resolution or diagnostic means is the first workstation holding it.
+        host, _, printer = at.key.partition("/")
+        return host if printer else _first_host_with(world, at.key)
     machine = world.machine_for(at.key) if at.kind == "user" else None
     return machine.hostname if machine else ""
+
+
+def _first_host_with(world: World, printer_name: str) -> str:
+    hosts = sorted(
+        m.hostname
+        for m in world.machines.values()
+        if m.assigned_to is not None and printer_name in m.installed_printers
+    )
+    return hosts[0] if hosts else ""
 
 
 def _printer_key(at: Placement) -> str:
     if at.kind != "printer":
         return ""
-    return at.key.split("/", 1)[1]
+    return at.key.partition("/")[2] or at.key
 
 
 def _share_group(world: World, at: Placement) -> str | None:

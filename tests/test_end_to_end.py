@@ -31,6 +31,9 @@ HTTP_FIX = {
     "net.gateway_misconfigured": ("net", "renew"),
     "net.stale_proxy": ("net", "clear-proxy"),
     "net.duplicate_static_ip": ("net", "enable-dhcp"),
+    "print.printer_offline": ("print", "reset-printer"),
+    "print.stuck_job": ("print", "clear-queue"),
+    "print.driver_after_model_swap": ("print", "push-driver"),
 }
 
 # Each DispatchTool also decides its own field name for "the thing this
@@ -51,6 +54,9 @@ TARGET_FIELD = {
     "nest-group": "group",
     "clear-proxy": "from",
     "enable-dhcp": "from",
+    "reset-printer": "printer",
+    "clear-queue": "printer",
+    "push-driver": "printer",
 }
 
 
@@ -83,7 +89,11 @@ def test_a_full_ticket_can_be_worked_through_http(tmp_path, seed):
     assert str(escape(ticket.report_text)) in client.get("/").text
     detail = client.get(f"/ticket/{ticket.id}").text
     fault = get_fault(ticket.fault_id)
+    # Both forms. A title containing an apostrophe ("the site's servers") never
+    # appears raw in rendered HTML, so a raw-only absence check would pass
+    # vacuously for exactly the titles most likely to leak.
     assert fault.canonical_title not in detail
+    assert str(escape(fault.canonical_title)) not in detail
     assert fault.id not in detail
 
     # Ask the user something before touching anything.
@@ -104,8 +114,9 @@ def test_a_full_ticket_can_be_worked_through_http(tmp_path, seed):
 
     body = client.post(f"/ticket/{ticket.id}/close", data={"disposition": disposition}).text
 
-    # After-action reveals the cause, and the record persists.
-    assert fault.canonical_title in body
+    # After-action reveals the cause, and the record persists. `root_cause` is
+    # autoescaped like any other template output, so compare the escaped form.
+    assert str(escape(fault.canonical_title)) in body
     records = session.store.history()
     assert len(records) == 1
     assert records[0].correct is True, f"{fault.id} graded incorrect: {records[0].verdict}"
