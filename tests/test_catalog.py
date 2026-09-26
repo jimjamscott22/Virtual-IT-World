@@ -131,16 +131,27 @@ def test_v1_catalog_is_complete():
         "net.static_dns_misconfig", "net.no_dhcp_lease",
         "endpoint.disk_full", "endpoint.failing_disk",
         "mail.mailbox_full", "mail.external_forwarding_rule",
+        # Phase 2b.
+        "ad.cached_credentials_stale", "ad.nested_group_membership",
+        "ad.upn_mismatch",
     }
 
 
-def test_exactly_three_faults_are_escalate_correct():
-    """One per reason a ticket is not yours: it needs authorisation, it needs
-    hardware, or acting on it is itself the mistake. Three flavours of the
-    same reason would be a worse drill than three different ones."""
+def test_exactly_four_faults_are_escalate_correct():
+    """One per reason a ticket is not yours, and no two alike:
+
+    - `ad.offboarded_reactivation` — it needs somebody's authorisation.
+    - `endpoint.failing_disk` — the failing part is physical.
+    - `mail.external_forwarding_rule` — acting destroys the evidence.
+    - `ad.upn_mismatch` — nobody here knows the correct value.
+
+    Four flavours of the same reason would be a worse drill than four
+    different ones, so a fifth entry has to bring a fifth reason with it.
+    """
     escalate = {f.id for f in all_faults() if f.escalation_is_correct}
     assert escalate == {
         "ad.offboarded_reactivation",
         "endpoint.failing_disk",
         "mail.external_forwarding_rule",
+        "ad.upn_mismatch",
     }

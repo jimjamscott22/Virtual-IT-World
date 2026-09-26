@@ -21,6 +21,18 @@ PLACEHOLDER = "{placement}"
 PLACEHOLDER_MACHINE = "{machine}"
 PLACEHOLDER_GROUP = "{group}"
 PLACEHOLDER_PRINTER = "{printer}"
+PLACEHOLDER_SUB_GROUP = "{sub_group}"
+
+
+def sub_group_name(parent: str) -> str:
+    """`ACC-Share-RW` -> `ACC-Staff`.
+
+    The convention lives here, beside the sentinel that resolves it, because
+    both `ad.nested_group_membership` (which creates the group) and `bind()`
+    (which names it in a resolution) have to agree on it, and two copies of a
+    naming rule is one copy too many.
+    """
+    return f"{parent.split('-', 1)[0]}-Staff" if parent else ""
 
 
 class Placement(BaseModel):
@@ -94,6 +106,7 @@ def _sentinels(at: Placement, world: World) -> dict[str, str]:
         PLACEHOLDER_MACHINE: _machine_key(world, at),
         PLACEHOLDER_GROUP: _share_group(world, at) or "",
         PLACEHOLDER_PRINTER: _printer_key(at),
+        PLACEHOLDER_SUB_GROUP: sub_group_name(_share_group(world, at) or ""),
     }
 
 
@@ -121,7 +134,7 @@ def _share_group(world: World, at: Placement) -> str | None:
 
 def bind(resolution: ResolutionPath, at: Placement, world: World) -> ResolutionPath:
     """Replace placement sentinels (`{placement}`, `{machine}`, `{group}`,
-    `{printer}`) with concrete world keys.
+    `{printer}`, `{sub_group}`) with concrete world keys.
 
     `canonical_resolutions()` cannot know its placement, so callers bind it.
     """
