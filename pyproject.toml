@@ -50,6 +50,9 @@ max-locals = 20
 max-args = 8
 max-attributes = 10
 
+[tool.vercel]
+entrypoint = "tests.test_shift:app"
+
 [tool.pylint."messages control"]
 # Every entry here is a check this project has deliberately decided against,
 # with the reason it does not apply. Nothing is disabled to raise the score:
