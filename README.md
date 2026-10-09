@@ -154,9 +154,12 @@ runs the full pytest suite and `pylint.yml` runs both lint passes. No local mode
 needed for tests; the suite explicitly isolates itself from `VITSC_*`
 environment variables.
 
-`vercel.json` turns off Vercel's automatic Git deployments. The drill keeps one
-in-memory world, shift clock and live event stream per process, so it needs a
-host that runs a long-lived server rather than serverless functions.
+`vercel.json` turns off Vercel's automatic Git deployments (`git.deploymentEnabled:
+false`, plus `ignoreCommand` so any stray build is canceled instead of failing on
+a missing Python entrypoint). You can also disconnect the repository from the
+Vercel project in the dashboard. The drill keeps one in-memory world, shift
+clock and live event stream per process, so it needs a host that runs a
+long-lived server rather than serverless functions.
 
 ## Project structure
 
