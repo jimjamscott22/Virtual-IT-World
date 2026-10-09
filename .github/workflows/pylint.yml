@@ -2,6 +2,11 @@ name: Pylint
 
 on: [push]
 
+# Read-only token: the jobs only check out and test the code; nothing here
+# writes to the repository, its issues, or its pull requests.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
