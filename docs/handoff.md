@@ -1,8 +1,9 @@
 # Phase 2b handoff
 
 Written at the end of the session that landed Phase 2b's catalog: the eighteen
-faults that took the drill from thirteen to thirty-one, plus the KB, distractor,
-invariant and escalation work the plan listed alongside them.
+faults that took the drill from thirteen to thirty-one (thirty-two with
+`ad.cached_credentials_expired`, which landed on `main` in parallel), plus the
+KB, distractor, invariant and escalation work the plan listed alongside them.
 
 Delete this file when Phase 2b is closed out. It records *situational* state —
 branch, PR, what is half-done, what is worth knowing once and not twice.
@@ -12,7 +13,7 @@ Architecture lives in `CLAUDE.md`, which is current.
 
 | | |
 | --- | --- |
-| Branch | `claude/game-dev-progress-review-i56yyx` |
+| Branch | `claude/game-dev-progress-review-i56yyx`, merged to `main` as PR #12 (`63e3d09`) |
 | Base | `main` at `8a8d750`, merged in — see the collision section |
 | Tests | 1662 passing, 0 xfailed |
 | Lint | 10.00/10 on `src` and on `tests` |
@@ -48,7 +49,8 @@ new reads, sixteen new actions, and the routing model in `_reachable()`.
 - mail `d96969d` — `mail.transport_stalled` (cascade), `mail.stale_delegate`,
   `mail.autodiscover_broken`, `mail.ownerless_distribution_list`.
 
-**The rest of the plan's list**: KB grown to fourteen articles with no orphans
+**The rest of the plan's list**: KB grown to fourteen articles (fifteen with the
+one `main` added alongside `ad.cached_credentials_expired`) with no orphans
 either way and distractors to eleven (`1cacf73`); the mail invariants and the
 single escalation path (`86dc208`); the store's session scoping (`dbfb405`).
 
@@ -114,7 +116,7 @@ Checked item by item against the plan's own list.
 | 4 | Distractor count scaled to the catalog, all passing the harness | ✅ eleven, ratio-guarded |
 | 5 | Mail invariants land, with a fault that trips them when fixed wrongly | ✅ both trippable through HTTP on `mail.mailbox_full` |
 | 6 | The escalation-disposition inconsistency resolved deliberately | ✅ one reviewed path; the dropdown option is gone and the route refuses it |
-| 7 | Every fault's `difficulty` chosen as a frequency decision | ✅ 5/13/10/3 across 1–4; ~68% of dealt tickets are routine, asserted |
+| 7 | Every fault's `difficulty` chosen as a frequency decision | ✅ 5/14/10/3 across 1–4; ~69% of dealt tickets are routine, asserted |
 | 8 | A full eight-hour shift workable end to end; `/shift` reads correctly for a good shift and a bad one | ✅ driven on a real server; a deliberately mixed shift reads "2 of 3 closed correctly" |
 | 9 | `uv run pytest` green with nothing on localhost; pylint 10.00/10 on both targets | ✅ — and read pylint's *exit code*, not its score line; see convention 32 |
 | 10 | A full ticket workable in the browser in all five domains, and twenty consecutive tickets unpredictable | ✅ automated for all 32 (`test_every_fault_in_the_catalog_can_be_closed_correctly`); a cascade and a `net.stale_proxy` ticket also worked by hand on a real server |
@@ -129,7 +131,7 @@ Checked item by item against the plan's own list.
   (its lines 11–12, Task 17's file list) still dangle. Recover with
   `git show dbcd2bb^:docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md`.
   If it comes back, §6's catalog table needs to go from ten faults to
-  thirty-one and the `Fault` protocol listing needs the 2a members.
+  thirty-two and the `Fault` protocol listing needs the 2a members.
 - **`is_present()` predicates overlap in three places, deliberately.**
   `print.wrong_driver` and `print.driver_after_model_swap` both mean "a
   workstation has the wrong driver for this printer";
@@ -203,8 +205,10 @@ uv run pytest          # expect 1662 passed, 0 xfailed
 uv run python -m vitsc # then work a shift; the drill is the point
 ```
 
-Phase 2b's catalog is complete. The next plan has not been written. The obvious
-candidates, in the order they would pay off:
+Phase 2b's catalog is complete. The next plan is the helpdesk workbench UI
+(`docs/superpowers/plans/2026-09-26-helpdesk-workbench-ui.md`, spec beside it
+under `specs/`), which covers item 2 below. The obvious candidates, in the order
+they would pay off:
 
 1. **Verify the LM Studio path.** It is the last unticked item in two phases and
    needs nothing but a machine with the model running.

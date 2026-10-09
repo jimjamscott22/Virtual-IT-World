@@ -39,7 +39,7 @@ tickets, and an unnecessary escalation can be returned by simulated tier 2.
   not, each for a different reason.
 - Eleven non-ticketable distractors that add realistic noise without causing the
   reported issue.
-- A fourteen-article knowledge base of procedures, deliberately containing no
+- A fifteen-article knowledge base of procedures, deliberately containing no
   answer keys.
 - Eight technician tools: AD console, PowerShell, networking, Event Viewer,
   print management, remote session, knowledge base, and mail console.
