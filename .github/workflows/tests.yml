@@ -1,0 +1,31 @@
+name: Tests
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      # Report every version's result, rather than cancelling the matrix on
+      # the first failure. Same matrix as pylint.yml, for the same reason.
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - name: Install the project
+      # `uv sync` includes the dev group, which is where pytest, httpx and
+      # markupsafe live. --locked fails the job if uv.lock is out of date
+      # with pyproject.toml, rather than silently resolving something else.
+      run: uv sync --locked --python ${{ matrix.python-version }}
+
+    - name: Run the test suite
+      # No model or network is needed: tests/conftest.py clears the VITSC_*
+      # variables, so every test runs against TemplatePersona.
+      run: uv run pytest

@@ -1,5 +1,6 @@
 # Virtual IT Support Center
 
+[![Tests](https://github.com/jimjamscott22/Virtual-IT-World/actions/workflows/tests.yml/badge.svg)](https://github.com/jimjamscott22/Virtual-IT-World/actions/workflows/tests.yml)
 [![Pylint](https://github.com/jimjamscott22/Virtual-IT-World/actions/workflows/pylint.yml/badge.svg)](https://github.com/jimjamscott22/Virtual-IT-World/actions/workflows/pylint.yml)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -148,7 +149,8 @@ uv run pytest tests/test_catalog.py
 uv run pytest -k account_locked
 ```
 
-The GitHub workflow runs Pylint on Python 3.12 and 3.13. No local model is
+Two GitHub workflows run on every push, each on Python 3.12 and 3.13: `tests.yml`
+runs the full pytest suite and `pylint.yml` runs both lint passes. No local model is
 needed for tests; the suite explicitly isolates itself from `VITSC_*`
 environment variables.
 

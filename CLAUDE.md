@@ -124,7 +124,7 @@ say themselves:
 
 ```bash
 uv sync                                    # install deps (Python 3.12+, uv required)
-uv run pytest                              # run the full suite
+uv run pytest                              # run the full suite (CI runs this)
 uv run pytest tests/test_catalog.py        # just the fault conformance harness
 uv run pytest -k account_locked            # run tests matching a name/id
 uv run pytest "tests/test_catalog.py::test_fault_conforms[ad.account_locked@m.alvarez]"  # one case
