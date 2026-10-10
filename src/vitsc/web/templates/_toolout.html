@@ -1,4 +1,1 @@
-{% for call in calls %}
-<pre class="tool-call">{{ call.tool }} {{ call.command }} {{ call.args.values() | join(' ') }}
-{{ call.rendered }}</pre>
-{% endfor %}
+{% for call in calls %}<article class="tool-call {{ 'tool-call--ok' if call.ok else 'tool-call--error' }}"><header><strong>{{ call.tool }} · {{ call.command }}</strong><span>{{ "Succeeded" if call.ok else "Failed" }}</span></header>{% if call.args %}<code>{{ call.args.values() | join(' ') }}</code>{% endif %}<pre>{{ call.rendered }}</pre></article>{% else %}<p class="empty-state">Choose a tool and run a diagnostic. Results will remain here for this ticket.</p>{% endfor %}

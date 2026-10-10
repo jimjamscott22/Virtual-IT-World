@@ -6,6 +6,7 @@ from vitsc.session.afteraction import build_after_action
 from vitsc.session.grading import grade_ticket
 from vitsc.session.ticket import Disposition, TicketState
 from vitsc.web.routes.queue import _session, _ticket_or_404
+from vitsc.web.context import shell_context
 
 router = APIRouter()
 
@@ -77,5 +78,8 @@ def history(request: Request):
     session = _session(request)
     return templates.TemplateResponse(
         request, "history.html",
-        {"records": session.store.history(), "stats": session.store.domain_stats()},
+        shell_context(
+            request,
+            records=session.store.history(), stats=session.store.domain_stats(),
+        ),
     )

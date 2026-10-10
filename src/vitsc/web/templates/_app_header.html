@@ -1,0 +1,16 @@
+<header class="app-header">
+  <a class="app-brand" href="/">
+    <strong>Virtual IT Support Center</strong>
+    <span>Meridian Freight Co.</span>
+  </a>
+  <div class="shift-rail" style="--shift-progress: {{ shift_progress }}%">
+    <div class="shift-rail__scale"><span>09:00</span><span class="shift-track" aria-hidden="true"></span><span>17:00</span></div>
+    <a href="/shift"><strong id="shift-remaining">{{ shift_remaining }}</strong> min left in shift</a>
+  </div>
+  <nav aria-label="Primary">
+    <a href="/"{% if request.url.path == '/' %} aria-current="page"{% endif %}>Queue</a>
+    <a href="/kb"{% if request.url.path.startswith('/kb') %} aria-current="page"{% endif %}>Knowledge base</a>
+    <a href="/history"{% if request.url.path == '/history' %} aria-current="page"{% endif %}>History</a>
+    <a href="/shift"{% if request.url.path == '/shift' %} aria-current="page"{% endif %}>Shift summary</a>
+  </nav>
+</header>

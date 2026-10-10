@@ -1,11 +1,1 @@
-<div id="chat">
-  {% for turn in ticket.chat %}
-  <p class="chat-turn chat-{{ turn.speaker }}">
-    <strong>{{ "Tier-2" if turn.speaker == "tier2" else turn.speaker }}:</strong> {{ turn.text }}
-  </p>
-  {% endfor %}
-  <form hx-post="/ticket/{{ ticket.id }}/chat" hx-target="#chat" hx-swap="outerHTML">
-    <input type="text" name="message" placeholder="Ask a question" autocomplete="off">
-    <button type="submit">Send</button>
-  </form>
-</div>
+<div id="chat"><div class="chat-timeline">{% for turn in ticket.chat %}<div class="chat-turn chat-{{ turn.speaker }}"><strong>{{ "Tier-2" if turn.speaker == "tier2" else ("You" if turn.speaker == "tech" else ticket.persona.name) }}</strong><p>{{ turn.text }}</p></div>{% endfor %}</div><form class="chat-form" hx-post="/ticket/{{ ticket.id }}/chat" hx-target="#chat" hx-swap="outerHTML"><label for="message-{{ ticket.id }}">Message</label><input id="message-{{ ticket.id }}" type="text" name="message" placeholder="Ask a focused question" autocomplete="off"><button type="submit">Send message</button></form></div>

@@ -1,13 +1,10 @@
 {% extends "base.html" %}
 {% block body %}
-<header class="topbar">
-  <h1>Closed tickets</h1>
-  <p class="org-name"><a href="/">Back to queue</a></p>
-</header>
-<main class="history-page">
+{% include "_app_header.html" %}
+<main class="history-page page-content"><span class="eyebrow">Performance record</span><h1>Closed tickets</h1>
   <section class="domain-stats">
     <h2>Accuracy by domain</h2>
-    <table>
+    <div class="data-table-wrap"><table>
       <thead><tr><th>Domain</th><th>Total</th><th>Correct</th><th>Accuracy</th></tr></thead>
       <tbody>
         {% for domain, stat in stats.items() %}
@@ -19,12 +16,12 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   </section>
 
   <section class="closed-tickets">
     <h2>History</h2>
-    <table>
+    <div class="data-table-wrap"><table>
       <thead>
         <tr>
           <th>Ticket</th><th>Domain</th><th>Disposition</th><th>Correct</th>
@@ -45,7 +42,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   </section>
 </main>
 {% endblock %}

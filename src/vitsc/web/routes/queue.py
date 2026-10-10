@@ -2,6 +2,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from vitsc.session.ticket import Priority
+from vitsc.web.context import shell_context
 
 router = APIRouter()
 
@@ -24,13 +25,7 @@ def index(request: Request):
     now = session.env.world.clock
     return templates.TemplateResponse(
         request, "index.html",
-        {
-            "tickets": session.queue.active(),
-            "now": now,
-            "degraded": session.degraded,
-            "shift_remaining": session.shift.remaining(now),
-            "shift_over": session.shift.is_over(now),
-        },
+        shell_context(request, tickets=session.queue.active(), now=now),
     )
 
 

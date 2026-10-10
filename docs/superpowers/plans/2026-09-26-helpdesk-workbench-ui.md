@@ -1,7 +1,7 @@
 # Helpdesk Workbench UI Implementation Plan
 
 > **For agentic workers:** Implement sequentially in the current workspace. Do
-> not use subagents for this repository. Steps use checkbox (`- [ ]`) syntax for
+> not use subagents for this repository. Steps use checkbox (`- [x]`) syntax for
 > tracking.
 
 **Goal:** Build the approved polished helpdesk-workbench interface across the
@@ -74,7 +74,7 @@ or session behavior.
 - Consumes: `AppSession.shift.elapsed()`, `AppSession.shift.minutes`, and the
   existing `build_payload()` response.
 
-- [ ] **Step 1: Add the shared shell context**
+- [x] **Step 1: Add the shared shell context**
 
   Create `vitsc.web.context.shell_context` so every full-page route receives
   consistent header state without copying calculations:
@@ -98,7 +98,7 @@ or session behavior.
   Use this helper in `/`, `/kb`, `/kb/{article_id}`, `/history`, and `/shift`.
   Partial routes keep their focused contexts.
 
-- [ ] **Step 2: Add the shared header partial and semantic page shell**
+- [x] **Step 2: Add the shared header partial and semantic page shell**
 
   `_app_header.html` must contain a brand link, organization name, shift rail,
   remaining-time text, and Queue/Knowledge base/History/Shift summary links.
@@ -120,7 +120,7 @@ or session behavior.
   </header>
   ```
 
-- [ ] **Step 3: Move browser behavior out of the template**
+- [x] **Step 3: Move browser behavior out of the template**
 
   Move the existing EventSource code from `base.html` into `app.js` without
   changing its endpoint or update cadence. Add these focused functions:
@@ -135,20 +135,20 @@ or session behavior.
   `base.html` loads HTMX first and `/static/app.js` with `defer`. Missing
   `EventSource` remains a safe no-op.
 
-- [ ] **Step 4: Expose progress through the existing SSE payload**
+- [x] **Step 4: Expose progress through the existing SSE payload**
 
   Add `shift_progress` to `build_payload()` using the same bounded
   `Shift.elapsed()` calculation as initial rendering. Keep `shift_remaining`,
   `shift_over`, `degraded`, `arrivals`, and `active` unchanged.
 
-- [ ] **Step 5: Establish the CSS tokens and application frame**
+- [x] **Step 5: Establish the CSS tokens and application frame**
 
   Replace the current root palette with the approved tokens, add the Segoe UI
   Variable stack, normalize controls, add visible focus styles, and implement
   the header/shift rail/application-frame layout. Preserve the warning banners'
   `[hidden]` behavior.
 
-- [ ] **Step 6: Update route-level tests after implementation**
+- [x] **Step 6: Update route-level tests after implementation**
 
   Extend existing tests to assert that full pages render `.app-header`, the
   four navigation destinations, and the initial shift progress. Extend
@@ -162,7 +162,7 @@ or session behavior.
       assert build_payload(session, later, [])["shift_progress"] == 100.0
   ```
 
-- [ ] **Step 7: Run focused verification**
+- [x] **Step 7: Run focused verification**
 
   Run:
 
@@ -188,7 +188,7 @@ or session behavior.
 - Produces: `.ticket-row`, `[data-ticket-id]`, `[data-priority]`, and
   `[data-overdue]` hooks used by CSS and Task 5's mobile interaction.
 
-- [ ] **Step 1: Replace clickable divs with native buttons**
+- [x] **Step 1: Replace clickable divs with native buttons**
 
   Preserve `hx-get`, `hx-target="#detail"`, and `hx-swap="innerHTML"`, but
   render each ticket as `button type="button"`. Use semantic groups for ticket
@@ -208,19 +208,19 @@ or session behavior.
   </button>
   ```
 
-- [ ] **Step 2: Add useful queue and workspace empty states**
+- [x] **Step 2: Add useful queue and workspace empty states**
 
   Queue copy: `No open tickets. New work will appear here during the shift.`
   Detail copy: `Choose the most urgent ticket to begin. Start with the user's
   report, then investigate before making changes.`
 
-- [ ] **Step 3: Style priority, overdue, cascade, hover, focus, and selection**
+- [x] **Step 3: Style priority, overdue, cascade, hover, focus, and selection**
 
   Use a left-edge marker for priority, explicit red overdue text, an outlined
   incident chip, line clamping for report previews, and a raised selected state.
   Do not use color as the only indication.
 
-- [ ] **Step 4: Update queue tests after implementation**
+- [x] **Step 4: Update queue tests after implementation**
 
   Extend `tests/test_web_queue.py` to assert:
 
@@ -233,7 +233,7 @@ or session behavior.
 
   Keep the existing fault-title leak test unchanged.
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
   Run `uv run pytest tests/test_web_queue.py -q` with the workspace-local uv
   cache. Expected: all queue and leak-prevention checks pass.
@@ -258,14 +258,14 @@ or session behavior.
   `select[data-tool-picker]`, and `select[data-command-picker]`.
 - Preserves: `#tools`, `#toolout`, and `#chat` HTMX targets.
 
-- [ ] **Step 1: Restructure the ticket into semantic working regions**
+- [x] **Step 1: Restructure the ticket into semantic working regions**
 
   Add a desktop-hidden `.back-to-queue` button, a case header, requester block,
   report blockquote, labeled triage form, conversation section, and workbench
   aside. Keep the comment forbidding direct rendering of `fault_id`, canonical
   title, or raw symptoms.
 
-- [ ] **Step 2: Improve the tool form without changing its POST contract**
+- [x] **Step 2: Improve the tool form without changing its POST contract**
 
   Give every control a label. Add `data-tool-picker` to the tool selector and
   `data-command-picker` to the command selector. Give each command option a
@@ -276,7 +276,7 @@ or session behavior.
   <option value="{{ cmd }}" data-tool="{{ t.name }}">{{ cmd }}</option>
   ```
 
-- [ ] **Step 3: Filter command options in vanilla JavaScript**
+- [x] **Step 3: Filter command options in vanilla JavaScript**
 
   `initializeToolPicker(root)` must disable and hide options that do not match
   the selected tool, select the first matching command, and rerun after HTMX
@@ -290,20 +290,20 @@ or session behavior.
 
   Reinitialization must be idempotent and must not submit or run a tool.
 
-- [ ] **Step 4: Present tool output as a durable console history**
+- [x] **Step 4: Present tool output as a durable console history**
 
   Render each call with its tool, command, arguments, success state, and output
   inside the existing `#toolout`. Long output scrolls inside the console and
   preserves whitespace. Empty output invites the technician to choose a tool
   and run a diagnostic.
 
-- [ ] **Step 5: Present chat as a conversation timeline**
+- [x] **Step 5: Present chat as a conversation timeline**
 
   Retain visible speaker names and the existing POST target. Style technician,
   user, and tier-2 turns distinctly without speech-bubble decoration on every
   line. Make the input and `Send message` action full-width at narrow sizes.
 
-- [ ] **Step 6: Update focused tests after implementation**
+- [x] **Step 6: Update focused tests after implementation**
 
   Assert tool and command labels, `data-tool` mappings, and unchanged POST
   behavior in `tests/test_web_tools.py`. Keep the existing tests proving tool
@@ -311,7 +311,7 @@ or session behavior.
   open ticket still contains no fault id or canonical title after the markup
   restructure.
 
-- [ ] **Step 7: Run focused verification**
+- [x] **Step 7: Run focused verification**
 
   Run:
 
@@ -344,34 +344,34 @@ or session behavior.
 - Produces: shared `.status-panel`, `.data-table-wrap`, `.verdict`, and
   `.page-content` presentation classes.
 
-- [ ] **Step 1: Separate escalation from resolution visually**
+- [x] **Step 1: Separate escalation from resolution visually**
 
   Keep the reviewed escalation path as the only escalation path. Give the note
   textarea supporting copy, keep `note` unchanged, and label the tier-2 bounce
   as `Returned by tier-2`. Keep `Close ticket` primary and `Escalate` secondary.
 
-- [ ] **Step 2: Reorder after-action content into a readable review**
+- [x] **Step 2: Reorder after-action content into a readable review**
 
   Lead with verdict and root cause, then summary metrics, shortest diagnostic
   path, wasted calls, collateral damage, KB suggestions, cascade note, and
   tier-2 outcome. Do not change the conditions that decide whether a section is
   rendered.
 
-- [ ] **Step 3: Apply the shared shell to KB, history, and shift pages**
+- [x] **Step 3: Apply the shared shell to KB, history, and shift pages**
 
   Include `_app_header.html` on all three. Keep current endpoints and data.
   Wrap data tables in `.data-table-wrap`, convert the KB body from an unbounded
   `<pre>` into a styled preformatted article region, and add useful empty-result
   copy: `No matching articles. Try a broader term or search for the symptom.`
 
-- [ ] **Step 4: Update page and flow tests after implementation**
+- [x] **Step 4: Update page and flow tests after implementation**
 
   Extend existing tests to assert the reviewed escalation URL is still present,
   the unreviewed disposition is still absent, the new tier-2 label appears on a
   bounce, the KB/history/shift pages contain the shared navigation, and all
   existing report strings still render.
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
   Run:
 
@@ -398,35 +398,35 @@ or session behavior.
 - Produces: `.ticket-open` state on `.layout` at narrow viewport widths.
 - Preserves: desktop simultaneous queue/detail visibility.
 
-- [ ] **Step 1: Implement responsive layout breakpoints**
+- [x] **Step 1: Implement responsive layout breakpoints**
 
   At widths above 1200px, render queue, case, and workbench as three meaningful
   regions. Between 761px and 1200px, keep queue beside the case and move the
   workbench below it. At 760px and below, show the queue or the detail view,
   never both squeezed side-by-side.
 
-- [ ] **Step 2: Add mobile master-detail interaction**
+- [x] **Step 2: Add mobile master-detail interaction**
 
   On a successful ticket-detail HTMX swap, add `.ticket-open` to `.layout`,
   record the selected ticket id, and focus the ticket heading. The Back to queue
   button removes the class and focuses the previously selected queue button.
   Queue refreshes must not clear the layout state.
 
-- [ ] **Step 3: Add accessibility and reduced-motion safeguards**
+- [x] **Step 3: Add accessibility and reduced-motion safeguards**
 
   Ensure focus is visible, headings remain hierarchical, form labels remain
   associated, status is not color-only, tables scroll within their wrapper, and
   long content uses `overflow-wrap`. Under `prefers-reduced-motion: reduce`,
   remove smooth scrolling and nonessential transitions.
 
-- [ ] **Step 4: Add structural regression checks after implementation**
+- [x] **Step 4: Add structural regression checks after implementation**
 
   Extend `tests/test_web_queue.py` to assert the Back to queue control and ticket
   heading focus target exist. These server tests cover the contract used by the
   browser behavior; the behavior itself is covered by the live browser pass in
   Task 6.
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
   Run `uv run pytest tests/test_web_queue.py -q` with the workspace-local uv
   cache. Expected: all template contracts and leak checks pass.
@@ -442,7 +442,7 @@ or session behavior.
 - Produces: screenshots and a concise verification record in the final handoff;
   no application interface is added.
 
-- [ ] **Step 1: Run the full automated suite**
+- [x] **Step 1: Run the full automated suite**
 
   Run:
 
@@ -454,7 +454,7 @@ or session behavior.
   Expected baseline from the current handoff: 1662 tests pass and none are
   xfailed, plus any new assertions added by this plan.
 
-- [ ] **Step 2: Run both lint commands and inspect exit codes**
+- [x] **Step 2: Run both lint commands and inspect exit codes**
 
   Run without pipes:
 
@@ -465,7 +465,7 @@ or session behavior.
 
   Expected: both exit with code 0. Do not infer success from the rounded score.
 
-- [ ] **Step 3: Run whitespace and working-tree checks**
+- [x] **Step 3: Run whitespace and working-tree checks**
 
   Run `git diff --check` and `git status --short`. Classify the pre-existing
   `.playwright-cli/` and `output/` paths separately from implementation files.

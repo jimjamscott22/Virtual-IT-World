@@ -1,17 +1,14 @@
 {% if not tickets %}
-<p class="empty-state">No open tickets.</p>
+<p class="empty-state">No open tickets. New work will appear here during the shift.</p>
 {% else %}
 {% for t in tickets %}
-<div class="ticket-row" data-priority="{{ t.system_priority.value }}"
-     hx-get="/ticket/{{ t.id }}" hx-target="#detail" hx-swap="innerHTML">
-  <span class="ticket-id">#{{ t.id }}</span>
-  <span class="ticket-priority">P{{ t.system_priority.value }}</span>
-  {% if t.cascade_id %}
-  <span class="ticket-cascade">{{ t.cascade_id }}</span>
-  {% endif %}
-  <span class="ticket-persona">{{ t.persona.name }}</span>
-  <span class="ticket-opening">{{ t.report_text }}</span>
-  <span class="ticket-sla" id="sla-{{ t.id }}">SLA in {{ ((t.deadline - now).total_seconds() // 60) | int }} min</span>
-</div>
+<button type="button" class="ticket-row" data-ticket-id="{{ t.id }}" data-priority="{{ t.system_priority.value }}" data-overdue="{{ 'true' if t.is_overdue(now) else 'false' }}"
+        hx-get="/ticket/{{ t.id }}" hx-target="#detail" hx-swap="innerHTML">
+  <span class="ticket-row__meta">#{{ t.id }} · P{{ t.system_priority.value }}</span>
+  <strong class="ticket-row__person">{{ t.persona.name }}</strong>
+  <span class="ticket-row__preview">{{ t.report_text }}</span>
+  {% if t.cascade_id %}<span class="incident-chip">Related incident {{ t.cascade_id }}</span>{% endif %}
+  <span class="ticket-row__sla" id="sla-{{ t.id }}">{% set minutes = ((t.deadline - now).total_seconds() // 60) | int %}{% if t.is_overdue(now) %}{{ -minutes }} min overdue{% else %}Due in {{ minutes }} min{% endif %}</span>
+</button>
 {% endfor %}
 {% endif %}

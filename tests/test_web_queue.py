@@ -18,6 +18,10 @@ def test_index_renders_the_queue(client):
     body = c.get("/").text
     assert "Meridian Freight" in body
     assert str(session.queue.active()[0].id) in body
+    assert 'class="app-header"' in body
+    for destination in ('href="/"', 'href="/kb"', 'href="/history"', 'href="/shift"'):
+        assert destination in body
+    assert "--shift-progress: 0.0%" in body
 
 
 def test_queue_partial_lists_active_tickets(client):
@@ -25,6 +29,8 @@ def test_queue_partial_lists_active_tickets(client):
     session.queue.open_one()
     body = c.get("/queue").text
     assert body.count('class="ticket-row"') == len(session.queue.active())
+    assert 'type="button"' in body
+    assert "data-overdue=" in body
 
 
 def test_ticket_detail_shows_the_report_but_not_the_fault(client):
@@ -37,6 +43,8 @@ def test_ticket_detail_shows_the_report_but_not_the_fault(client):
     assert str(escape(ticket.report_text)) in body
     assert ticket.fault_id not in body
     assert ticket.persona.name in body
+    assert 'class="back-to-queue"' in body
+    assert 'id="ticket-heading" tabindex="-1"' in body
 
 
 def test_ticket_detail_404s_for_unknown_id(client):
@@ -67,4 +75,4 @@ def test_cascade_siblings_are_visibly_related_in_the_queue(tmp_path):
     c = TestClient(create_app(session))
 
     body = c.get("/").text
-    assert body.count("C1") >= 2   # the shared cascade tag renders on each sibling
+    assert body.count("Related incident C1") >= 2

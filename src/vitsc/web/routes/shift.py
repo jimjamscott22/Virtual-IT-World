@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from vitsc.web.routes.queue import _session
+from vitsc.web.context import shell_context
 
 router = APIRouter()
 
@@ -19,12 +20,9 @@ def shift_summary(request: Request):
     now = session.env.world.clock
     return templates.TemplateResponse(
         request, "shift.html",
-        {
-            "report": session.shift_report(),
-            "shift": session.shift,
-            "now": now,
-            "remaining": session.shift.remaining(now),
-            "over": session.shift.is_over(now),
-            "degraded": session.degraded,
-        },
+        shell_context(
+            request,
+            report=session.shift_report(), shift=session.shift, now=now,
+            remaining=session.shift.remaining(now), over=session.shift.is_over(now),
+        ),
     )

@@ -1,5 +1,3 @@
-<form class="escalate-form" hx-post="/ticket/{{ ticket.id }}/escalate" hx-target="#detail" hx-swap="innerHTML">
-  <label for="note">What did you find, and where?</label>
-  <textarea name="note" id="note" placeholder="e.g. checked the account's status, here's what I saw..."></textarea>
-  <button type="submit">Send to tier-2</button>
+<form class="escalate-form status-panel" hx-post="/ticket/{{ ticket.id }}/escalate" hx-target="#detail" hx-swap="innerHTML">
+  <h4>Escalate for tier-2 review</h4><label for="note">What did you find, and where?</label><p class="supporting-copy">Include the evidence you gathered and the tool or screen where you found it.</p><textarea name="note" id="note" placeholder="I checked… and found…"></textarea><button type="submit">Send to tier-2</button>
 </form>

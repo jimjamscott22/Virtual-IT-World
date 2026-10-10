@@ -1,21 +1,9 @@
 <div id="tools">
-  <form hx-post="/ticket/{{ ticket.id }}/tool" hx-target="#toolout" hx-swap="innerHTML">
-    <select name="tool">
-      {% for t in tools %}
-      <option value="{{ t.name }}">{{ t.name }}</option>
-      {% endfor %}
-    </select>
-    <select name="command">
-      {% for t in tools %}
-      {% for cmd in t.commands() %}
-      <option value="{{ cmd }}">{{ t.name }} {{ cmd }}</option>
-      {% endfor %}
-      {% endfor %}
-    </select>
-    <input type="text" name="args" placeholder="key=value key=value">
-    <button type="submit">Run</button>
+  <form class="tool-form" hx-post="/ticket/{{ ticket.id }}/tool" hx-target="#toolout" hx-swap="innerHTML">
+    <label for="tool-{{ ticket.id }}">Tool</label><select id="tool-{{ ticket.id }}" name="tool" data-tool-picker>{% for t in tools %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}</select>
+    <label for="command-{{ ticket.id }}">Command</label><select id="command-{{ ticket.id }}" name="command" data-command-picker>{% for t in tools %}{% for cmd in t.commands() %}<option value="{{ cmd }}" data-tool="{{ t.name }}">{{ cmd }}</option>{% endfor %}{% endfor %}</select>
+    <label for="args-{{ ticket.id }}">Arguments</label><input id="args-{{ ticket.id }}" type="text" name="args" placeholder="key=value key=value" autocomplete="off">
+    <button type="submit">Run diagnostic</button>
   </form>
-  <div id="toolout">
-    {% include "_toolout.html" %}
-  </div>
+  <div id="toolout" class="tool-console" aria-live="polite">{% include "_toolout.html" %}</div>
 </div>

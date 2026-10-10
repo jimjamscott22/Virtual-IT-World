@@ -36,6 +36,7 @@ def build_payload(session: AppSession, now: datetime, arrivals: list) -> dict:
     was: the loop itself never terminates, so driving it through TestClient
     hangs. Everything worth asserting lives here instead.
     """
+    progress = 100 * session.shift.elapsed(now) / session.shift.minutes
     return {
         "clock": now.isoformat(),
         "arrivals": [t.id for t in arrivals],
@@ -44,6 +45,7 @@ def build_payload(session: AppSession, now: datetime, arrivals: list) -> dict:
         # restarting its own countdown.
         "shift_remaining": session.shift.remaining(now),
         "shift_over": session.shift.is_over(now),
+        "shift_progress": round(max(0.0, min(100.0, progress)), 2),
         # Degradation starts mid-session, long after the page was rendered,
         # so the banner has to be driven from here rather than from the
         # initial render alone.
