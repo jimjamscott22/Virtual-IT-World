@@ -1,5 +1,6 @@
 # Virtual IT Support Center
 
+[![Tests](https://github.com/jimjamscott22/Virtual-IT-World/actions/workflows/tests.yml/badge.svg)](https://github.com/jimjamscott22/Virtual-IT-World/actions/workflows/tests.yml)
 [![Pylint](https://github.com/jimjamscott22/Virtual-IT-World/actions/workflows/pylint.yml/badge.svg)](https://github.com/jimjamscott22/Virtual-IT-World/actions/workflows/pylint.yml)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -38,7 +39,7 @@ tickets, and an unnecessary escalation can be returned by simulated tier 2.
   not, each for a different reason.
 - Eleven non-ticketable distractors that add realistic noise without causing the
   reported issue.
-- A fourteen-article knowledge base of procedures, deliberately containing no
+- A fifteen-article knowledge base of procedures, deliberately containing no
   answer keys.
 - Eight technician tools: AD console, PowerShell, networking, Event Viewer,
   print management, remote session, knowledge base, and mail console.
@@ -148,9 +149,17 @@ uv run pytest tests/test_catalog.py
 uv run pytest -k account_locked
 ```
 
-The GitHub workflow runs Pylint on Python 3.12 and 3.13. No local model is
+Two GitHub workflows run on every push, each on Python 3.12 and 3.13: `tests.yml`
+runs the full pytest suite and `pylint.yml` runs both lint passes. No local model is
 needed for tests; the suite explicitly isolates itself from `VITSC_*`
 environment variables.
+
+`vercel.json` turns off Vercel's automatic Git deployments (`git.deploymentEnabled:
+false`, plus `ignoreCommand` so any stray build is canceled instead of failing on
+a missing Python entrypoint). You can also disconnect the repository from the
+Vercel project in the dashboard. The drill keeps one in-memory world, shift
+clock and live event stream per process, so it needs a host that runs a
+long-lived server rather than serverless functions.
 
 ## Project structure
 

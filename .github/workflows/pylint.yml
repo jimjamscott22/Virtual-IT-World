@@ -2,6 +2,11 @@ name: Pylint
 
 on: [push]
 
+# Read-only token: the jobs only check out and test the code; nothing here
+# writes to the repository, its issues, or its pull requests.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,7 +33,8 @@ jobs:
       # `vitsc.*` imports and reports the whole codebase as broken. uv fetches
       # the interpreter itself, so no separate setup-python step is needed.
       # `uv sync` includes the dev group, which is where pylint lives.
-      run: uv sync --python ${{ matrix.python-version }}
+      # --locked fails the job if uv.lock is out of date with pyproject.toml.
+      run: uv sync --locked --python ${{ matrix.python-version }}
 
     - name: Analysing the code with pylint
       # Two runs, so the package keeps the stricter rule set. The disables
