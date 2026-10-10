@@ -32,10 +32,21 @@ DEFAULT_BASE_URL = "http://localhost:1234/v1"
 REQUEST_TIMEOUT_SECONDS = 30.0
 TRANSPORT_RETRIES = 0
 
+# A persona reply is two or three sentences, but the budget is not sized for
+# the reply alone: a model that reasons before it answers spends from the same
+# allowance, and at 120 tokens one such model used all of it thinking and
+# returned `content == ""` with `finish_reason == "length"`. The system prompt
+# is what keeps replies short; this only has to leave room to get to one.
+MAX_REPLY_TOKENS = 512
+
 RETRY_NUDGE = (
     "That reply used a technical term you would not know. Say the same thing "
     "again in plain words, without naming any cause."
 )
+
+
+class EmptyReplyError(RuntimeError):
+    """The model answered, but with no text to show."""
 
 
 @lru_cache(maxsize=64)
@@ -197,6 +208,12 @@ class LMStudioPersona:
             model=self._model,
             messages=messages,
             temperature=0.7,
-            max_tokens=120,
+            max_tokens=MAX_REPLY_TOKENS,
         )
-        return response.choices[0].message.content.strip()
+        text = (response.choices[0].message.content or "").strip()
+        if not text:
+            # Raised rather than returned so it takes the same road as a dead
+            # server: an empty string scrubs "clean", and would otherwise
+            # reach the page as a blank message with no banner to explain it.
+            raise EmptyReplyError("the model returned no reply text")
+        return text

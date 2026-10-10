@@ -7,7 +7,7 @@ _GROUP_TARGETED = {"get-group", "add-member", "remove-member", "nest-group"}
 
 class ADConsole(DispatchTool):
     name = "ad"
-    TARGET_PARAM = "identity"
+    TARGET_PARAM = "sam"
     READS = {"get-user": "ad.user", "get-group": "ad.group"}
     WRITES = {
         "unlock": "ad.unlock",
@@ -19,7 +19,7 @@ class ADConsole(DispatchTool):
         "nest-group": "ad.nest_group",
     }
 
-    def target_key(self, command: str, args: dict[str, str]) -> str:
+    def target_param(self, command: str) -> str:
         if command.lower() in _GROUP_TARGETED:
-            return args.get("group", "")
-        return args.get("sam", "")
+            return "group"
+        return self.TARGET_PARAM

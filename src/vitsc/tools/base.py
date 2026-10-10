@@ -58,7 +58,7 @@ class Tool(Protocol):
 class DispatchTool:
     """Shared dispatch for every tool: a read map, a write map, and a target.
 
-    Subclasses declare `name`, `READS`, `WRITES`, and override `target_key`
+    Subclasses declare `name`, `READS`, `WRITES`, and override `target_param`
     when the target is not `args["host"]`.
     """
 
@@ -70,8 +70,16 @@ class DispatchTool:
     def commands(self) -> list[str]:
         return sorted([*self.READS, *self.WRITES])
 
+    def target_param(self, command: str) -> str:
+        """The argument `command` reads its target from.
+
+        One answer serves both the lookup and the "missing parameter" message,
+        so the message cannot name an argument the command does not read.
+        """
+        return self.TARGET_PARAM
+
     def target_key(self, command: str, args: dict[str, str]) -> str:
-        return args.get(self.TARGET_PARAM, "")
+        return args.get(self.target_param(command), "")
 
     def query_args(self, command: str, args: dict[str, str]) -> dict[str, str]:
         return args
@@ -124,7 +132,7 @@ class DispatchTool:
             # honest.
             return self._record(
                 log, command, args, ok=False, mutating=False,
-                rendered=MISSING.format(param=self.TARGET_PARAM.capitalize()),
+                rendered=MISSING.format(param=self.target_param(command).capitalize()),
             )
         call_args = self.query_args(command, args)
         if direction == "read":

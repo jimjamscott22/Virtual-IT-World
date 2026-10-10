@@ -160,3 +160,47 @@ def test_model_dying_on_the_retry_also_falls_back():
     reply = persona.reply(CARD, SYMPTOMS, [], "when did it start?")
     assert reply == SYMPTOMS.onset
     assert persona.degraded is True
+
+
+def test_an_empty_reply_falls_back_and_marks_the_persona_degraded():
+    """A thinking model that spends its whole token budget reasoning answers
+    with `content == ""`. That is a failure, not a clean reply: shown as-is it
+    is a blank message with no banner to explain it."""
+    persona = LMStudioPersona(client=StubClient([""]), model="local", leak_terms=["locked"])
+    reply = persona.reply(CARD, SYMPTOMS, [], "what happens when you try?")
+    assert reply.strip()
+    assert persona.degraded is True
+
+
+def test_a_whitespace_only_reply_is_as_empty_as_an_empty_one():
+    persona = LMStudioPersona(client=StubClient(["  \n "]), model="local", leak_terms=[])
+    assert persona.reply(CARD, SYMPTOMS, [], "what happens?").strip()
+    assert persona.degraded is True
+
+
+def test_a_reply_with_no_content_at_all_falls_back():
+    persona = LMStudioPersona(client=StubClient([None]), model="local", leak_terms=[])
+    assert persona.reply(CARD, SYMPTOMS, [], "what happens?").strip()
+    assert persona.degraded is True
+
+
+def test_an_empty_opening_report_falls_back_to_the_template():
+    persona = LMStudioPersona(client=StubClient([""]), model="local", leak_terms=[])
+    assert SYMPTOMS.opening in persona.initial_report(CARD, SYMPTOMS)
+    assert persona.degraded is True
+
+
+def test_an_empty_retry_after_a_leak_falls_back_rather_than_going_blank():
+    stub = StubClient(["my account is locked", ""])
+    persona = LMStudioPersona(client=stub, model="local", leak_terms=["locked"])
+    reply = persona.reply(CARD, SYMPTOMS, [], "what happens when you try?")
+    assert reply.strip()
+    assert "locked" not in reply.lower()
+    assert persona.degraded is True
+
+
+def test_the_token_budget_leaves_room_for_a_model_that_thinks_first():
+    """120 tokens was all reasoning and no answer for a thinking model."""
+    stub = StubClient(["it just won't let me in"])
+    LMStudioPersona(client=stub, model="local", leak_terms=[]).reply(CARD, SYMPTOMS, [], "hm?")
+    assert stub.calls[0]["max_tokens"] >= 400

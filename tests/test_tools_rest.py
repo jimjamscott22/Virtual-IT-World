@@ -109,3 +109,35 @@ def test_all_eight_tools_are_registered():
 def test_every_tool_advertises_its_commands():
     for tool in all_tools():
         assert tool.commands(), f"{tool.name} advertises no commands"
+
+
+def test_ipconfig_names_the_parameter_it_is_actually_missing(env, log):
+    """`net ipconfig` runs *from* a machine. Asking for `-Host` sent the
+    technician to supply the one argument the command does not read."""
+    call = NetworkTools().invoke(env, log, "ipconfig", {})
+    assert call.ok is False
+    assert call.rendered == "Missing required parameter: -From"
+
+
+_DISPATCH_COMMANDS = [
+    (tool, command)
+    for tool in all_tools()
+    if hasattr(tool, "target_param")
+    for command in tool.commands()
+]
+
+
+@pytest.mark.parametrize(
+    "tool,command", _DISPATCH_COMMANDS, ids=[f"{t.name} {c}" for t, c in _DISPATCH_COMMANDS]
+)
+def test_the_parameter_a_command_asks_for_is_the_one_it_reads(tool, command, env, log):
+    """Whatever name the "missing parameter" message gives, supplying exactly
+    that must get past it. A message naming a parameter the command ignores
+    cannot be acted on."""
+    bare = tool.invoke(env, log, command, {})
+    prefix = "Missing required parameter: -"
+    if not bare.rendered.startswith(prefix):
+        return  # this command has a default target and never asks
+    named = bare.rendered[len(prefix):].lower()
+    supplied = tool.invoke(env, log, command, {named: "anything"})
+    assert supplied.rendered != bare.rendered

@@ -21,9 +21,9 @@ class NetworkTools(DispatchTool):
         "clear-proxy": "machine.clear_proxy",
     }
 
-    def target_key(self, command: str, args: dict[str, str]) -> str:
+    def target_param(self, command: str) -> str:
         # ping and nslookup act *on* a remote name; everything else acts on
         # the machine the technician is sitting at.
         if command.lower() in _REMOTE_TARGETED:
-            return args.get("host", "")
-        return args.get("from", "")
+            return "host"
+        return "from"

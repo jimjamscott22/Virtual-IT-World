@@ -82,4 +82,6 @@ costs you one slow reply, not a hung page.
 | Banner on, every reply scripted | Server not running, or `VITSC_BASE_URL` wrong. Re-run the `curl` in step 1. |
 | Banner on only sometimes | The model is timing out on longer questions. Try a smaller one. |
 | No banner, but replies still feel canned | `VITSC_PERSONA` is not set to `lmstudio` — an unknown value falls back silently, by design. |
+| Banner on with the server up, replies scripted | The model is answering with no text — typically one that reasons first and runs out of `MAX_REPLY_TOKENS` (512, in `persona/client.py`) before it gets to the reply. Turn thinking off for it in LM Studio, or load a model that does not think first. |
+| A blank message from the user | Should no longer be possible: an empty reply is treated as a failure and falls back. If you see one, it is a regression in `_complete`. |
 | A reply names a cause | A real leak. Capture the fault id, the question, and the reply, and add the term to that fault's `leak_terms`. |

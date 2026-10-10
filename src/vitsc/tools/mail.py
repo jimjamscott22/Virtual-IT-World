@@ -34,9 +34,9 @@ class MailConsole(DispatchTool):
         "remove-mailbox": "mail.remove_mailbox",
     }
 
-    def target_key(self, command: str, args: dict[str, str]) -> str:
+    def target_param(self, command: str) -> str:
         if command.lower() in _SERVER_TARGETED:
-            return args.get("host", "")
+            return "host"
         if command.lower() in _LIST_TARGETED:
-            return args.get("list", "")
-        return args.get("sam", "")
+            return "list"
+        return self.TARGET_PARAM

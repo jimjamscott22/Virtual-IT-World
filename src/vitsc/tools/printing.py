@@ -17,10 +17,10 @@ class PrintManagement(DispatchTool):
         "push-driver": "printer.push_driver",
     }
 
-    def target_key(self, command: str, args: dict[str, str]) -> str:
+    def target_param(self, command: str) -> str:
         if command.lower() in _MACHINE_TARGETED:
-            return args.get("from", "")
-        return args.get("printer", "")
+            return "from"
+        return self.TARGET_PARAM
 
     def query_args(self, command: str, args: dict[str, str]) -> dict[str, str]:
         if command.lower() in _MACHINE_TARGETED:

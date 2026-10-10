@@ -56,7 +56,7 @@ HTTP_FIX = {
 }
 
 # Each DispatchTool also decides its own field name for "the thing this
-# command acts on" (see the target_key() overrides in vitsc/tools/*.py), so
+# command acts on" (see the target_param() overrides in vitsc/tools/*.py), so
 # the bound Action's `target` has to be reattached under the right key per
 # command before it can be posted as a form.
 TARGET_FIELD = {
