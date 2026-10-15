@@ -1,0 +1,34 @@
+{# The shared application header: brand, the live shift rail, and primary
+   navigation. Every full-page route renders it through `web/context.py:
+   shell_context`, so the shift values below exist on every page. The rail's
+   fill and the remaining-time text are updated in place by `static/app.js`
+   from the SSE tick; the server is the only thing that knows the simulated
+   clock. #}
+{% set path = request.url.path %}
+{% set nav = [
+  ("/", "Queue", path == "/"),
+  ("/kb", "Knowledge base", path.startswith("/kb")),
+  ("/history", "History", path == "/history"),
+  ("/shift", "Shift summary", path == "/shift"),
+] %}
+<header class="app-header">
+  <a class="app-brand" href="/">
+    <strong>Virtual IT Support Center</strong>
+    <span>Meridian Freight Co.</span>
+  </a>
+  <div class="shift-rail" id="shift-rail" style="--shift-progress: {{ shift_progress }}%">
+    <span class="shift-time shift-start">{{ shift_starts }}</span>
+    <span class="shift-track" role="progressbar" aria-label="Shift progress"
+          aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ shift_progress }}"
+          id="shift-track"><span class="shift-fill"></span></span>
+    <span class="shift-time shift-end">{{ shift_ends }}</span>
+    <a class="shift-remaining" href="/shift"><strong id="shift-remaining">{{ shift_remaining }}</strong> min left in shift</a>
+  </div>
+  <nav class="app-nav" aria-label="Primary">
+    <ul>
+      {% for href, label, current in nav %}
+      <li><a href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ label }}</a></li>
+      {% endfor %}
+    </ul>
+  </nav>
+</header>

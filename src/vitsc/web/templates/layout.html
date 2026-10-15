@@ -1,36 +1,32 @@
 {% extends "base.html" %}
 {% block body %}
-<header class="topbar">
-  <h1>Virtual IT Support Center</h1>
-  <p class="org-name">Meridian Freight Co.</p>
-  {# Driven by the SSE tick, like the SLA countdowns: the shift runs down on
-     the simulated clock, so the server is the only thing that knows how much
-     of it is left. #}
-  <p class="shift-clock"><span id="shift-remaining">{{ shift_remaining }}</span> min left in shift
-    · <a href="/shift">shift summary</a></p>
-</header>
+{% include "_app_header.html" %}
 {# Always rendered, hidden until the clock runs out — the same reason the
    degraded banner is: the end of the shift arrives mid-session and there may
    never be another full page load to reveal it. #}
-<div id="shift-banner" class="banner banner-shift"
+<div id="shift-banner" class="banner banner-shift" role="status"
      {% if not shift_over %}hidden{% endif %}>
-  End of shift. No new tickets will arrive — finish what is open, then
+  <strong>End of shift.</strong> No new tickets will arrive — tickets already
+  open stay workable. Finish them, then
   <a href="/shift">see how the shift went</a>.
 </div>
-{# Always rendered so the SSE handler in base.html can reveal it the moment
-   the model goes away mid-session, rather than only on the next full page
-   load — which, in an HTMX app, may never come. #}
-<div id="degraded-banner" class="banner banner-degraded"
+{# Always rendered so the SSE handler in static/app.js can reveal it the
+   moment the model goes away mid-session, rather than only on the next full
+   page load — which, in an HTMX app, may never come. #}
+<div id="degraded-banner" class="banner banner-degraded" role="status"
      data-degraded="{{ 'true' if degraded else 'false' }}"
      {% if not degraded %}hidden{% endif %}>
-  The simulated user is running on scripted replies — the local model is
-  unavailable. The drill still works; the answers are just less natural.
+  <strong>Scripted replies active.</strong> The simulated user is running on
+  scripted replies — the local model is unavailable. The drill still works;
+  the answers are just less natural.
 </div>
-<main class="layout">
-  <section id="queue" class="queue-pane" hx-get="/queue" hx-trigger="every 10s, refresh" hx-swap="innerHTML">
+<main class="layout app-frame">
+  <h1 class="visually-hidden">Helpdesk workbench</h1>
+  <section id="queue" class="queue-pane" aria-label="Ticket queue"
+           hx-get="/queue" hx-trigger="every 10s, refresh" hx-swap="innerHTML">
     {% include "_queue.html" %}
   </section>
-  <section id="detail" class="detail-pane">
+  <section id="detail" class="detail-pane" aria-label="Active case">
     {% block detail %}
     <p class="empty-state">Select a ticket from the queue.</p>
     {% endblock %}

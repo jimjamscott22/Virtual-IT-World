@@ -1,11 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Shift summary — Virtual IT Support Center{% endblock %}
 {% block body %}
-<header class="topbar">
-  <h1>Virtual IT Support Center</h1>
-  <p class="org-name">Meridian Freight Co.</p>
-</header>
-<main class="shift-page">
+{% include "_app_header.html" %}
+<main class="page shift-page">
+  <h1>Shift summary</h1>
   <h2>{{ "Shift over" if over else "Shift so far" }}</h2>
   <p class="shift-window">
     {{ shift.started_at.strftime("%H:%M") }}–{{ shift.ends_at.strftime("%H:%M") }}

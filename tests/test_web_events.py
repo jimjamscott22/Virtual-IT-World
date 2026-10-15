@@ -3,7 +3,12 @@ from datetime import timedelta
 import pytest
 
 from vitsc.web.deps import AppSession
-from vitsc.web.routes.events import MINUTES_PER_TICK, TICK_SECONDS, advance_clock_if_due
+from vitsc.web.routes.events import (
+    MINUTES_PER_TICK,
+    TICK_SECONDS,
+    advance_clock_if_due,
+    build_payload,
+)
 
 
 @pytest.fixture
@@ -38,3 +43,18 @@ def test_three_overlapping_connections_still_advance_only_once_per_tick(session)
         advance_clock_if_due(session, wall_now=100.0 + offset)
 
     assert session.env.world.clock == before + timedelta(minutes=MINUTES_PER_TICK)
+
+
+def test_payload_reports_bounded_shift_progress(session):
+    payload = build_payload(session, session.env.world.clock, [])
+    assert payload["shift_progress"] == 0.0
+    later = session.env.world.clock + timedelta(minutes=session.shift.minutes)
+    assert build_payload(session, later, [])["shift_progress"] == 100.0
+    # Past the end the rail stays full rather than overflowing.
+    overtime = later + timedelta(minutes=30)
+    assert build_payload(session, overtime, [])["shift_progress"] == 100.0
+
+
+def test_payload_progress_tracks_the_shift_midway(session):
+    halfway = session.env.world.clock + timedelta(minutes=session.shift.minutes // 2)
+    assert build_payload(session, halfway, [])["shift_progress"] == 50.0

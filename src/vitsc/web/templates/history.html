@@ -1,10 +1,9 @@
 {% extends "base.html" %}
+{% block title %}History — Virtual IT Support Center{% endblock %}
 {% block body %}
-<header class="topbar">
+{% include "_app_header.html" %}
+<main class="page history-page">
   <h1>Closed tickets</h1>
-  <p class="org-name"><a href="/">Back to queue</a></p>
-</header>
-<main class="history-page">
   <section class="domain-stats">
     <h2>Accuracy by domain</h2>
     <table>

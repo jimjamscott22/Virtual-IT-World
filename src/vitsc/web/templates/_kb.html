@@ -1,10 +1,9 @@
 {% extends "base.html" %}
+{% block title %}Knowledge base — Virtual IT Support Center{% endblock %}
 {% block body %}
-<header class="topbar">
+{% include "_app_header.html" %}
+<main class="page kb-page">
   <h1>Knowledge base</h1>
-  <p><a href="/">Back to queue</a></p>
-</header>
-<main class="kb-page">
   {% if article %}
   <article class="kb-article">
     <h2>{{ article.title }}</h2>

@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from markupsafe import escape
@@ -68,3 +70,31 @@ def test_cascade_siblings_are_visibly_related_in_the_queue(tmp_path):
 
     body = c.get("/").text
     assert body.count("C1") >= 2   # the shared cascade tag renders on each sibling
+
+
+NAV_LINKS = ('href="/"', 'href="/kb"', 'href="/history"', 'href="/shift"')
+
+
+def test_index_renders_the_shared_header_with_navigation(client):
+    c, _ = client
+    body = c.get("/").text
+    assert 'class="app-header"' in body
+    for link in NAV_LINKS:
+        assert link in body
+    # Queue is the current page, and only it is marked so.
+    assert body.count('aria-current="page"') == 1
+    assert '<a href="/" aria-current="page">Queue</a>' in body
+
+
+def test_index_renders_the_initial_shift_progress(client):
+    c, session = client
+    session.env.world.clock += timedelta(minutes=session.shift.minutes // 4)
+    body = c.get("/").text
+    assert "--shift-progress: 25.0%" in body
+    assert 'aria-valuenow="25.0"' in body
+
+
+def test_pages_load_the_shared_script(client):
+    c, _ = client
+    assert '<script src="/static/app.js" defer></script>' in c.get("/").text
+    assert c.get("/static/app.js").status_code == 200

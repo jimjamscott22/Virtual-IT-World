@@ -212,3 +212,12 @@ def test_the_summary_page_says_when_the_shift_is_over(app):
     body = client.get("/shift").text
     assert "Shift over" in body
     assert "all 8 hours worked" in body
+
+
+def test_the_summary_page_shares_the_header_and_a_full_rail_at_the_end(app):
+    session, client = app
+    session.env.world.clock = session.shift.ends_at
+    body = client.get("/shift").text
+    assert 'class="app-header"' in body
+    assert "--shift-progress: 100.0%" in body
+    assert '<a href="/shift" aria-current="page">Shift summary</a>' in body

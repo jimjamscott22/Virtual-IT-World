@@ -74,7 +74,7 @@ or session behavior.
 - Consumes: `AppSession.shift.elapsed()`, `AppSession.shift.minutes`, and the
   existing `build_payload()` response.
 
-- [ ] **Step 1: Add the shared shell context**
+- [x] **Step 1: Add the shared shell context**
 
   Create `vitsc.web.context.shell_context` so every full-page route receives
   consistent header state without copying calculations:
@@ -98,7 +98,7 @@ or session behavior.
   Use this helper in `/`, `/kb`, `/kb/{article_id}`, `/history`, and `/shift`.
   Partial routes keep their focused contexts.
 
-- [ ] **Step 2: Add the shared header partial and semantic page shell**
+- [x] **Step 2: Add the shared header partial and semantic page shell**
 
   `_app_header.html` must contain a brand link, organization name, shift rail,
   remaining-time text, and Queue/Knowledge base/History/Shift summary links.
@@ -120,7 +120,7 @@ or session behavior.
   </header>
   ```
 
-- [ ] **Step 3: Move browser behavior out of the template**
+- [x] **Step 3: Move browser behavior out of the template**
 
   Move the existing EventSource code from `base.html` into `app.js` without
   changing its endpoint or update cadence. Add these focused functions:
@@ -135,20 +135,20 @@ or session behavior.
   `base.html` loads HTMX first and `/static/app.js` with `defer`. Missing
   `EventSource` remains a safe no-op.
 
-- [ ] **Step 4: Expose progress through the existing SSE payload**
+- [x] **Step 4: Expose progress through the existing SSE payload**
 
   Add `shift_progress` to `build_payload()` using the same bounded
   `Shift.elapsed()` calculation as initial rendering. Keep `shift_remaining`,
   `shift_over`, `degraded`, `arrivals`, and `active` unchanged.
 
-- [ ] **Step 5: Establish the CSS tokens and application frame**
+- [x] **Step 5: Establish the CSS tokens and application frame**
 
   Replace the current root palette with the approved tokens, add the Segoe UI
   Variable stack, normalize controls, add visible focus styles, and implement
   the header/shift rail/application-frame layout. Preserve the warning banners'
   `[hidden]` behavior.
 
-- [ ] **Step 6: Update route-level tests after implementation**
+- [x] **Step 6: Update route-level tests after implementation**
 
   Extend existing tests to assert that full pages render `.app-header`, the
   four navigation destinations, and the initial shift progress. Extend
@@ -162,7 +162,7 @@ or session behavior.
       assert build_payload(session, later, [])["shift_progress"] == 100.0
   ```
 
-- [ ] **Step 7: Run focused verification**
+- [x] **Step 7: Run focused verification**
 
   Run:
 

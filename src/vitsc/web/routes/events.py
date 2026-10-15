@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
+from vitsc.web.context import shift_progress
 from vitsc.web.deps import AppSession
 from vitsc.web.routes.queue import _session
 
@@ -44,6 +45,9 @@ def build_payload(session: AppSession, now: datetime, arrivals: list) -> dict:
         # restarting its own countdown.
         "shift_remaining": session.shift.remaining(now),
         "shift_over": session.shift.is_over(now),
+        # The header rail's fill, 0-100. Same helper the initial render uses,
+        # so the first tick cannot jump the rail.
+        "shift_progress": shift_progress(session.shift, now),
         # Degradation starts mid-session, long after the page was rendered,
         # so the banner has to be driven from here rather than from the
         # initial render alone.
