@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from markupsafe import escape
@@ -76,3 +78,24 @@ def test_cascade_siblings_are_visibly_related_in_the_queue(tmp_path):
 
     body = c.get("/").text
     assert body.count("Related incident C1") >= 2
+
+
+def test_only_the_queue_link_is_marked_current_on_the_index(client):
+    c, _ = client
+    body = c.get("/").text
+    assert body.count('aria-current="page"') == 1
+    assert '<a href="/" aria-current="page">Queue</a>' in body
+
+
+def test_index_renders_the_initial_shift_progress(client):
+    # The rail is drawn from the server's value on first paint, not left at 0%
+    # until the first SSE tick arrives.
+    c, session = client
+    session.env.world.clock += timedelta(minutes=session.shift.minutes // 4)
+    assert "--shift-progress: 25.0%" in c.get("/").text
+
+
+def test_pages_load_the_shared_script(client):
+    c, _ = client
+    assert '<script src="/static/app.js" defer></script>' in c.get("/").text
+    assert c.get("/static/app.js").status_code == 200

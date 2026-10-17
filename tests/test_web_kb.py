@@ -41,3 +41,12 @@ def test_kb_article_page_renders_the_body(client):
 def test_unknown_article_404s(client):
     c, _ = client
     assert c.get("/kb/nope").status_code == 404
+
+
+@pytest.mark.parametrize("path", ["/kb", "/kb/general-triage-first-questions"])
+def test_kb_pages_share_the_application_header(client, path):
+    c, _ = client
+    body = c.get(path).text
+    assert 'class="app-header"' in body
+    assert 'id="shift-remaining"' in body
+    assert '<a href="/kb" aria-current="page">Knowledge base</a>' in body
