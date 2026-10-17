@@ -50,3 +50,10 @@ def test_payload_reports_bounded_shift_progress(session):
     assert payload["shift_progress"] == 0.0
     later = session.env.world.clock + timedelta(minutes=session.shift.minutes)
     assert build_payload(session, later, [])["shift_progress"] == 100.0
+
+
+def test_payload_progress_tracks_the_shift_midway(session):
+    # The 0% and 100% ends are clamped, so they cannot catch a wrong
+    # denominator or a non-linear scale; the midpoint can.
+    halfway = session.env.world.clock + timedelta(minutes=session.shift.minutes // 2)
+    assert build_payload(session, halfway, [])["shift_progress"] == 50.0

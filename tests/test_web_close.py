@@ -110,3 +110,11 @@ def test_closing_as_escalated_is_refused_even_by_a_crafted_request(client):
     assert "escalate" in r.json()["detail"].lower()
     assert session.queue.get(ticket.id).disposition is None
     assert session.store.history() == []
+
+
+def test_history_page_shares_the_application_header(client):
+    c, _ = client
+    body = c.get("/history").text
+    assert 'class="app-header"' in body
+    assert "--shift-progress: 0.0%" in body
+    assert '<a href="/history" aria-current="page">History</a>' in body
