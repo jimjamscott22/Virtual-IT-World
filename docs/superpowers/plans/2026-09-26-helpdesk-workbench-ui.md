@@ -472,6 +472,11 @@ or session behavior.
 
 - [ ] **Step 4: Validate the primary workflow in a real browser**
 
+  Pickup note (2026-10-14): still pending. This container had no installed
+  browser, Playwright's Chromium download was rejected by the proxy with HTTP
+  403, and the configured Debian repositories offered no Chromium package. See
+  `docs/handoff.md` for the repeated automated checks and the exact resume point.
+
   Start the app with a workspace-local temporary SQLite database. At minimum:
 
   1. Open a ticket by mouse and keyboard.
