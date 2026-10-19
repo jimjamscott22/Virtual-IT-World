@@ -167,3 +167,33 @@ def test_rows_written_before_the_column_existed_belong_to_no_session(tmp_path):
 
     assert store.history() == []
     assert len(store.history(all_sessions=True)) == 1
+
+
+def test_main_uses_default_db_path_when_no_override_is_set():
+    from vitsc.__main__ import DB_PATH, resolve_db_path
+
+    assert resolve_db_path([]) == DB_PATH
+
+
+def test_main_honours_vitsc_db_env_and_cli_flag(monkeypatch, tmp_path):
+    from vitsc import __main__
+
+    env_path = tmp_path / "env" / "custom.sqlite3"
+    cli_path = tmp_path / "cli" / "override.sqlite3"
+    monkeypatch.setenv("VITSC_DB", str(env_path))
+    assert __main__.resolve_db_path([]) == env_path
+    assert __main__.resolve_db_path(["--db", str(cli_path)]) == cli_path
+
+    recorded = {}
+
+    def fake_run(app, host, port):
+        recorded["db_path"] = app.state.session.store.path
+        recorded["host"] = host
+        recorded["port"] = port
+
+    monkeypatch.setattr(__main__.uvicorn, "run", fake_run)
+    __main__.main([])
+    assert recorded["db_path"] == env_path
+    assert env_path.exists()
+    assert recorded["host"] == "127.0.0.1"
+    assert recorded["port"] == 8000

@@ -12,7 +12,7 @@ step-by-step checklist is in
 | --- | --- |
 | Branch | `work` |
 | Implementation commit | `e25d316` (`Refactor templates for improved structure and styling`) |
-| Automated tests | 1731 passed; one third-party Starlette deprecation warning |
+| Automated tests | 1733 passed; one third-party Starlette deprecation warning |
 | Lint | `src` and `tests` both exit 0 at 10.00/10 |
 | Working tree at pickup | clean |
 
@@ -42,7 +42,7 @@ plan.
 
 ```text
 UV_CACHE_DIR=.venv/uv-cache uv run pytest
-1731 passed, 1 warning in 229.05s
+1733 passed, 1 warning in 102.75s
 
 uv run pylint src
 Your code has been rated at 10.00/10 (exit 0)
@@ -68,9 +68,26 @@ and every browser download was rejected by the environment's proxy with HTTP
 Consequently, no honest screenshots or claims about the live responsive pass
 were made here.
 
-On a browser-capable machine, resume at Task 6 step 4. Use a temporary database,
-exercise the complete ticket workflow, and capture the five specified states at
-390x844, 1024x768, 1440x900, and 2560x1440. Store disposable screenshots under
+On a browser-capable machine, resume at Task 6 step 4. Start the server against
+a temporary database so validation tickets do not land in
+`~/.vitsc/sessions.sqlite3`:
+
+PowerShell:
+
+```powershell
+$env:VITSC_DB = Join-Path ([System.IO.Path]::GetTempPath()) "vitsc-ui.sqlite3"
+uv run python -m vitsc
+```
+
+Bash / POSIX shell:
+
+```bash
+VITSC_DB=/tmp/vitsc-ui.sqlite3 uv run python -m vitsc
+```
+
+(Or pass `uv run python -m vitsc --db <path>` directly.) Exercise the complete
+ticket workflow, and capture the five specified states at 390x844, 1024x768,
+1440x900, and 2560x1440. Store disposable screenshots under
 `output/playwright/helpdesk-workbench/`; do not commit them unless explicitly
 requested.
 

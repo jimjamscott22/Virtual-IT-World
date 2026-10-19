@@ -101,7 +101,7 @@ say themselves:
   both reading `cached_credentials_*` are indistinguishable in an after-action,
   and the unmerged one is the one to move.
 
-`tests/conftest.py` clears the three `VITSC_*` variables for every test. Now that `AppSession.build` reads the environment, a developer with `VITSC_PERSONA=lmstudio` exported would otherwise point the entire suite at a local model; the Global Constraint that the suite passes with nothing on localhost is enforced there rather than left to habit.
+`tests/conftest.py` clears the `VITSC_*` variables (`VITSC_PERSONA`, `VITSC_BASE_URL`, `VITSC_MODEL`, `VITSC_DB`) for every test. Now that `AppSession.build` and `__main__.py` read the environment, a developer with `VITSC_PERSONA=lmstudio` or `VITSC_DB` exported would otherwise point the suite at a local model or a custom database; the Global Constraint that the suite passes with nothing on localhost is enforced there rather than left to habit.
 
 ## Commands
 

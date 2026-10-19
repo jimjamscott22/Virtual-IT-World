@@ -477,7 +477,10 @@ or session behavior.
   403, and the configured Debian repositories offered no Chromium package. See
   `docs/handoff.md` for the repeated automated checks and the exact resume point.
 
-  Start the app with a workspace-local temporary SQLite database. At minimum:
+  Start the app with a workspace-local temporary SQLite database (for example
+  `$env:VITSC_DB = ".venv/vitsc-ui.sqlite3"; uv run python -m vitsc` in
+  PowerShell, `VITSC_DB=.venv/vitsc-ui.sqlite3 uv run python -m vitsc` in bash,
+  or `uv run python -m vitsc --db .venv/vitsc-ui.sqlite3`). At minimum:
 
   1. Open a ticket by mouse and keyboard.
   2. Change triage priority.

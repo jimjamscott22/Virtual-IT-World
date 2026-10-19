@@ -13,7 +13,7 @@ test still wins.
 
 import pytest
 
-VITSC_ENV_VARS = ("VITSC_PERSONA", "VITSC_BASE_URL", "VITSC_MODEL")
+VITSC_ENV_VARS = ("VITSC_PERSONA", "VITSC_BASE_URL", "VITSC_MODEL", "VITSC_DB")
 
 
 @pytest.fixture(autouse=True)
