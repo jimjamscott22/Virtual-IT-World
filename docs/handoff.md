@@ -1,217 +1,123 @@
-# Phase 2b handoff
+# Helpdesk workbench handoff
 
-Written at the end of the session that landed Phase 2b's catalog: the eighteen
-faults that took the drill from thirteen to thirty-one (thirty-two with
-`ad.cached_credentials_expired`, which landed on `main` in parallel), plus the
-KB, distractor, invariant and escalation work the plan listed alongside them.
+Updated 2026-10-14 after resuming the workbench redesign from commit `e25d316`.
+This file records transient branch and verification state. The durable design is
+in `docs/superpowers/specs/2026-09-26-helpdesk-workbench-design.md`; the
+step-by-step checklist is in
+`docs/superpowers/plans/2026-09-26-helpdesk-workbench-ui.md`.
 
-Delete this file when Phase 2b is closed out. It records *situational* state —
-branch, PR, what is half-done, what is worth knowing once and not twice.
-Architecture lives in `CLAUDE.md`, which is current.
-
-## Where things stand
+## Current state
 
 | | |
 | --- | --- |
-| Branch | `claude/game-dev-progress-review-i56yyx`, merged to `main` as PR #12 (`63e3d09`) |
-| Base | `main` at `8a8d750`, merged in — see the collision section |
-| Tests | 1662 passing, 0 xfailed |
-| Lint | 10.00/10 on `src` and on `tests` |
-| Catalog | 32 faults — identity 8, network 6, printing 6, endpoint 6, mail 6 |
+| Branch | `work` |
+| Implementation commit | `e25d316` (`Refactor templates for improved structure and styling`) |
+| Automated tests | 1733 passed; one third-party Starlette deprecation warning |
+| Lint | `src` and `tests` both exit 0 at 10.00/10 |
+| Working tree at pickup | clean |
 
-## What landed
+Tasks 1–5 of the workbench plan are implemented. Task 6's automated regression,
+lint, and whitespace checks have been repeated successfully. The remaining work
+is the real-browser workflow and responsive screenshot pass in Task 6 steps 4–6.
 
-One commit of machinery, five commits of faults, then the supporting work. Read
-the commit messages: each one states what it changed and, where a test had to
-change shape, why the test was wrong rather than the code.
+## What the workbench commit contains
 
-**The machinery, first and on its own** (`9858414`). Most 2b faults could not be
-expressed against the Phase 2a world. `ServiceState.DISABLED`, nested groups,
-`Machine.proxy_server` / `last_domain_sync` / `clock_offset_minutes` /
-`processes`, `Printer.jobs`, `Mailbox.delegates`,
-`MailSystem.autodiscover_host` / `distribution_lists`, `Network.netmask`, six
-new reads, sixteen new actions, and the routing model in `_reachable()`.
+- Shared full-page context and application header with live shift progress.
+- A semantic, keyboard-operable ticket queue with priority, SLA, and cascade
+  information.
+- A restructured active-case view, command filtering, durable tool output, and
+  conversation timeline.
+- Restyled escalation, tier-2, after-action, knowledge-base, history, and shift
+  views.
+- Responsive master/detail behavior and reduced-motion handling in vanilla
+  JavaScript.
+- Server-side regression coverage for the new markup contracts and SSE payload.
 
-**The faults**, one commit per domain:
+The redesign deliberately does not change simulation, persistence, fault,
+grading, persona, or tool behavior. Preserve the endpoint names, form field
+names, HTMX targets, fault-leak boundaries, and SSE cadence called out in the
+plan.
 
-- identity `4113425` — `ad.password_change_not_cached`,
-  `ad.nested_group_membership`, `ad.upn_mismatch` (the fourth escalate-correct
-  reason: nobody in IT knows the right answer).
-- network `9107f88` — `net.wrong_subnet_mask`, `net.gateway_misconfigured`,
-  `net.stale_proxy`, `net.duplicate_static_ip` (cascade). Four distinct
-  observable signatures; the table is in that commit message and is the thing to
-  preserve if `_reachable()` is ever touched.
-- printing `29625df` — `print.printer_offline`, `print.stuck_job` (cascade),
-  `print.driver_after_model_swap` (cascade).
-- endpoint `666bc63` — `endpoint.corrupt_profile`,
-  `endpoint.service_disabled`, `endpoint.time_skew`,
-  `endpoint.runaway_process`.
-- mail `d96969d` — `mail.transport_stalled` (cascade), `mail.stale_delegate`,
-  `mail.autodiscover_broken`, `mail.ownerless_distribution_list`.
+## Verification repeated at pickup
 
-**The rest of the plan's list**: KB grown to fourteen articles (fifteen with the
-one `main` added alongside `ad.cached_credentials_expired`) with no orphans
-either way and distractors to eleven (`1cacf73`); the mail invariants and the
-single escalation path (`86dc208`); the store's session scoping (`dbfb405`).
+```text
+UV_CACHE_DIR=.venv/uv-cache uv run pytest
+1733 passed, 1 warning in 102.75s
 
-## Task 1 was built twice — read this before touching `identity.py`
+uv run pylint src
+Your code has been rated at 10.00/10 (exit 0)
 
-Convention 23 again, for the second time in this project's life (Phase 2a's Task
-15 was the first). While this branch was working the whole of 2b,
-**`ad.cached_credentials_expired` landed on `main` independently** as 2b's Task 1.
-Two sessions, same plan line, two different faults.
+uv run pylint tests \
+  --disable=redefined-outer-name,unused-variable,protected-access,use-implicit-booleaness-not-comparison
+Your code has been rated at 10.00/10 (exit 0)
 
-They were **both kept**, because they are not the same fault:
-
-| | `ad.cached_credentials_expired` (from `main`) | `ad.password_change_not_cached` (this branch) |
-| --- | --- | --- |
-| mechanism | `Netlogon` stopped — the machine's channel to the domain is down | the cached credential is older than the password |
-| symptom | signed in fine, but drives, printers and mail all fail | the *new* password is rejected here, the old one works |
-| the tell | `ad get-user` reads completely clean | `LastDomainSync` predates `PasswordLastSet` |
-| fix | restart `Netlogon` | `remote refresh-credentials` |
-
-The one on `main` is kept exactly as its author wrote it, including its
-`HTTP_FIX` entry (converted to the step-list shape). **This branch's fault was
-renamed** from `ad.cached_credentials_stale` to `ad.password_change_not_cached`:
-two ids both reading `cached_credentials_*` are indistinguishable in an
-after-action, and the unmerged one is the one to move. Naming it for its
-mechanism also makes the pair legible — one is about the channel, the other about
-what the channel last carried.
-
-Nothing else collided mechanically. Their fault gates on a service state and
-mine on two timestamps, so neither can flip the other, and the merge needed no
-compromise on either.
-
-## Four bugs found by driving the app, not by the suite
-
-Convention 5 earned its place again. None of these was caught by pytest, and
-three of them were in code this session had just written.
-
-1. **`forgive()` silently dropped both new `Baseline` fields.** It rebuilds the
-   model naming each field, so a field added and forgotten there defaults to
-   empty on every arrival: the invariant never fires in a real session while its
-   own unit tests pass. Guarded now by
-   `test_forgiving_nothing_leaves_every_baseline_field_intact`. **This is the
-   single most important thing in this file** — it generalises to any future
-   `Baseline` field.
-2. **`mail.remove_mailbox` made an unreachable raise reachable**, turning a bad
-   grade into a 500. A missing mailbox now reads as the fault still present.
-3. **The shift summary counted previous shifts.** `~/.vitsc/sessions.sqlite3`
-   outlives the process, so four tickets closed reported seven. No timestamp
-   could have separated the runs — the simulated clock restarts at 09:00 every
-   session — so rows carry a `session_id`.
-4. **A raw-substring assertion against rendered HTML passed vacuously** for any
-   fault title containing an apostrophe, in two separate test files. The
-   negative half was the dangerous one: it was a *leak* check.
-
-## Phase 2b Definition of Done
-
-Checked item by item against the plan's own list.
-
-| | Item | Status |
-|---|---|---|
-| 1 | 30+ faults, conforming across every placement, all five domains, none below five | ✅ 32, none below six |
-| 2 | Two cascades in different domains; four escalate-correct, no two for the same reason | ✅ five cascades in three domains; four reasons — authorisation, hardware, acting-destroys-evidence, nobody-knows-the-value |
-| 3 | Every fault links an article; every article is linked | ✅ proved by `test_no_orphans_in_either_direction` |
-| 4 | Distractor count scaled to the catalog, all passing the harness | ✅ eleven, ratio-guarded |
-| 5 | Mail invariants land, with a fault that trips them when fixed wrongly | ✅ both trippable through HTTP on `mail.mailbox_full` |
-| 6 | The escalation-disposition inconsistency resolved deliberately | ✅ one reviewed path; the dropdown option is gone and the route refuses it |
-| 7 | Every fault's `difficulty` chosen as a frequency decision | ✅ 5/14/10/3 across 1–4; ~69% of dealt tickets are routine, asserted |
-| 8 | A full eight-hour shift workable end to end; `/shift` reads correctly for a good shift and a bad one | ✅ driven on a real server; a deliberately mixed shift reads "2 of 3 closed correctly" |
-| 9 | `uv run pytest` green with nothing on localhost; pylint 10.00/10 on both targets | ✅ — and read pylint's *exit code*, not its score line; see convention 32 |
-| 10 | A full ticket workable in the browser in all five domains, and twenty consecutive tickets unpredictable | ✅ automated for all 32 (`test_every_fault_in_the_catalog_can_be_closed_correctly`); a cascade and a `net.stale_proxy` ticket also worked by hand on a real server |
-| — | LM Studio: suite green with it running, and `VITSC_PERSONA=lmstudio` roleplaying every ticket | ⬜ **inherited from Phase 2a and still unverified.** No sandbox has had network to a local LM Studio. `docs/verifying-lmstudio.md` is the manual procedure; a green pipeline does not stand in for it |
-
-## Open threads
-
-- **The LM Studio path has never run.** The one item above that cannot be ticked
-  from here. Everything else in Phase 2a's and 2b's Definitions of Done is done.
-- **The design spec is still deleted** (commit `dbcd2bb`), so `CLAUDE.md` remains
-  the sole architectural record and the 2a plan's cross-references to the spec
-  (its lines 11–12, Task 17's file list) still dangle. Recover with
-  `git show dbcd2bb^:docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md`.
-  If it comes back, §6's catalog table needs to go from ten faults to
-  thirty-two and the `Fault` protocol listing needs the 2a members.
-- **`is_present()` predicates overlap in three places, deliberately.**
-  `print.wrong_driver` and `print.driver_after_model_swap` both mean "a
-  workstation has the wrong driver for this printer";
-  `share.group_membership_removed` and `ad.nested_group_membership` both mean
-  "this person is not effectively in the group the share requires". That is
-  honest — the gate is world state, and the world really is broken both ways —
-  and the scheduler skips a fault that is already present, so no ticket is dealt
-  twice for one cause. But it means a *second* fault can read as present while
-  the first is active, and if a future feature ever asks "which fault is this
-  world in", it will need a tie-break that does not exist today.
-- **A third cached-credentials-adjacent fault would now be one too many.** The
-  pair described in the collision section above is legible because the two
-  mechanisms are genuinely different; a third fault in that area should either
-  replace one of them or pick a different part of the estate.
-- **`mail.transport_stalled` and `mail.autodiscover_broken` share a placement**
-  (`MER-MB-01`). Fine today; worth knowing if placement-holding ever becomes
-  keyed on the placement alone rather than on fault + placement.
-- **No CSS for any class added since Phase 2a** — `.chat-tier2`, `.tier2-*`,
-  `.escalate-form`, `.ticket-actions`, `.kb-*`, and now nothing new beyond them.
-  Matches existing precedent; a styling pass would want the lot.
-- **`_kb.html` still has no link from `layout.html`/`index.html`.** Reachable by
-  typing `/kb` or through the after-action's links.
-- **Cross-session history is now available but unused.** `Store.history()` and
-  `domain_stats()` take `all_sessions=True`. A career-to-date view is the
-  obvious next thing to want and nothing builds it.
-- **`ipconfig` rendering still has no test coverage**, and it now has more to get
-  wrong: `_effective_mask`/`_effective_gateway` feed it. Related to convention 19.
-
-## Conventions this codebase expects
-
-Phase 2a's list (1–25) still holds; it is in this file's history at `27276e8` and
-every item remains true. What Phase 2b adds:
-
-26. **A new `Baseline` field must be added in three places, not two.**
-    `capture_baseline`, `check_invariants`, *and* `session/queue.py:forgive`. The
-    third is the one that gets forgotten, and forgetting it is silent.
-27. **A raw-substring assertion against rendered HTML is unreliable in both
-    directions.** An apostrophe becomes an entity, so a positive check fails and
-    a negative check passes vacuously. Compare `markupsafe.escape(...)`, or
-    — better, for a string you own — write the string without a possessive.
-28. **An action that lets a technician destroy something makes previously
-    unreachable code reachable.** `mail.remove_mailbox` turned a documented
-    "cannot happen" raise into a 500 on close. When adding a destructive action,
-    grep for what assumes the thing exists.
-29. **`difficulty` shifts the *aggregate* mix, not just one fault's frequency.**
-    `test_the_catalog_deals_mostly_routine_tickets` is the test a badly-chosen
-    difficulty fails; it is about the catalog, not the scheduler.
-30. **A distractor with no placements fails nothing.** Its conformance cases
-    vanish from the parametrized file instead. Same for any parametrized harness
-    keyed on a `placements()` call — an empty list is zero tests, not a failure.
-31. **A fault placed on anything without an `assigned_to` must declare its own
-    `reporters()`** — a server, a distribution list, a group. `resolved_reporters`
-    returns `[]` otherwise and the ticket goes to nobody, which surfaces as a
-    `KeyError`/`IndexError` well away from the fault that caused it.
-32. **Read pylint's exit code, not its score line.** One finding rounds away in a
-    codebase this size: the rating still reads `10.00/10` while pylint exits 8.
-    `uv run pylint src | tail -3` looks clean and CI fails — which is how a
-    `too-many-branches` finding got past a local check on this branch. `| tail`
-    hides the exit status as well as the message.
-33. **`HTTP_FIX` maps a fault to an ordered *list* of steps.** A repair needing
-    two world changes needs two entries, or `resolve_via_http` posts half the fix
-    and the ticket grades as closed-but-unfixed.
-
-## Resuming
-
-```bash
-git checkout main
-git pull
-uv sync
-uv run pytest          # expect 1662 passed, 0 xfailed
-uv run python -m vitsc # then work a shift; the drill is the point
+git diff --check
+clean
 ```
 
-Phase 2b's catalog is complete. The next plan is the helpdesk workbench UI
-(`docs/superpowers/plans/2026-09-26-helpdesk-workbench-ui.md`, spec beside it
-under `specs/`), which covers item 2 below. The obvious candidates, in the order
-they would pay off:
+The warning is emitted by FastAPI's vendored `TestClient` import because the
+installed Starlette version marks its `httpx` integration as deprecated; it does
+not represent a failing project test.
 
-1. **Verify the LM Studio path.** It is the last unticked item in two phases and
-   needs nothing but a machine with the model running.
-2. **A styling pass**, since the drill is now content-complete and looks it.
-3. **Career-to-date progress** across sessions, which the store can already
-   answer and nothing asks.
+## Browser-validation blocker in this environment
+
+The application starts successfully at `http://127.0.0.1:8000`, but this
+container has no browser installed. `npx playwright install chromium` was tried
+and every browser download was rejected by the environment's proxy with HTTP
+403. Debian's configured repositories also expose no Chromium candidate.
+Consequently, no honest screenshots or claims about the live responsive pass
+were made here.
+
+On a browser-capable machine, resume at Task 6 step 4. Start the server against
+a temporary database so validation tickets do not land in
+`~/.vitsc/sessions.sqlite3`:
+
+PowerShell:
+
+```powershell
+$env:VITSC_DB = Join-Path ([System.IO.Path]::GetTempPath()) "vitsc-ui.sqlite3"
+uv run python -m vitsc
+```
+
+Bash / POSIX shell:
+
+```bash
+VITSC_DB=/tmp/vitsc-ui.sqlite3 uv run python -m vitsc
+```
+
+(Or pass `uv run python -m vitsc --db <path>` directly.) Exercise the complete
+ticket workflow, and capture the five specified states at 390x844, 1024x768,
+1440x900, and 2560x1440. Store disposable screenshots under
+`output/playwright/helpdesk-workbench/`; do not commit them unless explicitly
+requested.
+
+## Review focus for the browser pass
+
+1. Repeated `/events` arrivals refresh `#queue` without removing
+   `.layout.ticket-open` or accelerating simulated time.
+2. Changing the selected tool filters commands while submitting the unchanged
+   `tool`, `command`, and `args` values.
+3. Open-ticket HTML never displays a fault id, canonical title, or raw symptom
+   structure.
+4. Long reports, tool output, KB articles, and tables stay within their regions
+   without horizontal viewport overflow.
+5. Keyboard focus moves to `#ticket-heading` when a ticket opens and returns to
+   the selected `.ticket-row` through `Back to queue`.
+6. Reduced-motion emulation removes nonessential transitions and smooth
+   scrolling.
+
+## Older open threads
+
+The Phase 2b catalog remains complete at 32 faults. These earlier follow-ups are
+still intentionally open:
+
+- The LM Studio persona path still needs verification on a machine running LM
+  Studio; use `docs/verifying-lmstudio.md`.
+- The deleted original design spec has not been restored. Its last version is
+  recoverable with
+  `git show dbcd2bb^:docs/superpowers/specs/2026-08-07-virtual-it-support-center-design.md`.
+- Cross-session history is available through `Store.history()` and
+  `domain_stats()` with `all_sessions=True`, but no career-to-date view consumes
+  it yet.
+- The overlapping `is_present()` predicates documented in repository history
+  remain deliberate; do not introduce a fault-id branch to disambiguate them.
